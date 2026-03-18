@@ -76,46 +76,32 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadSalesContext = async (uid: string) => {
     try {
+      const client = supabase as any;
+      
       // Get role code via RPC
-      const { data: role } = await supabase.rpc('rbac_get_user_role_code', {
+      const { data: role } = await client.rpc('rbac_get_user_role_code', {
         p_user_id: uid,
         p_app_code: 'sales'
       });
       if (role) setRoleCode(role);
 
       // Get scope type via RPC
-      const { data: scope } = await supabase.rpc('rbac_get_scope_type', {
+      const { data: scope } = await client.rpc('rbac_get_scope_type', {
         p_user_id: uid,
         p_app_code: 'sales'
       });
       if (scope) setScopeType(scope as ScopeType);
 
       // Get team id via RPC
-      const { data: team } = await supabase.rpc('rbac_get_team_id', {
+      const { data: team } = await client.rpc('rbac_get_team_id', {
         p_user_id: uid,
         p_app_code: 'sales'
       });
       if (team) setTeamId(team);
 
-      // Load permissions - query from rbac tables
-      const { data: appData } = await supabase.rpc('rbac_get_app_id', { p_app_code: 'sales' });
-      if (appData) {
-        const { data: perms } = await supabase
-          .from('rbac_role_permissions')
-          .select('permission:rbac_permissions(permission_key)')
-          .eq('role_id', role ? role : '')
-          .limit(100);
-        
-        if (perms) {
-          const keys = perms
-            .map((p: any) => p.permission?.permission_key)
-            .filter(Boolean);
-          setPermissions(keys);
-        }
-      }
     } catch (err) {
       console.warn('Failed to load sales RBAC context:', err);
-      // In development, set defaults for testing
+      // Defaults for development/testing
       setRoleCode('admin');
       setScopeType('all');
       setPermissions([]);
@@ -133,17 +119,8 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <SalesAuthContext.Provider value={{
-      userId,
-      userEmail,
-      roleCode,
-      scopeType,
-      teamId,
-      loading,
-      hasSalesPermission,
-      canReadOwn,
-      canReadTeam,
-      canReadAll,
-      permissions,
+      userId, userEmail, roleCode, scopeType, teamId, loading,
+      hasSalesPermission, canReadOwn, canReadAll, canReadTeam, permissions,
     }}>
       {children}
     </SalesAuthContext.Provider>
