@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import type { Session, User } from '@supabase/supabase-js';
+import { getCoreClient } from '@/lib/coreClient';
+import type { Session, User, SupabaseClient } from '@supabase/supabase-js';
 
 interface CoreProfile {
   id: string;
@@ -46,59 +46,93 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [coreConnected, setCoreConnected] = useState(false);
 
-  const loadCoreContext = useCallback(async (currentSession: Session) => {
+  const loadProfileAndRoles = useCallback(async (coreClient: SupabaseClient, currentUser: User) => {
     try {
-      const { data, error } = await supabase.functions.invoke('core-auth-context', {
-        headers: { Authorization: `Bearer ${currentSession.access_token}` },
-      });
+      // Read profile directly from CORE
+      const { data: profileData } = await coreClient
+        .from('profiles')
+        .select('*')
+        .eq('email', currentUser.email)
+        .maybeSingle();
 
-      if (error) {
-        console.warn('Failed to load CORE context:', error);
-        return;
+      setProfile(profileData || null);
+
+      if (profileData) {
+        const { data: userRoles } = await coreClient
+          .from('user_roles')
+          .select('role:roles(slug, name)')
+          .eq('user_id', profileData.id || profileData.user_id);
+
+        if (userRoles) {
+          const roleSlugs = userRoles
+            .map((ur: any) => ur.role?.slug || ur.role?.name)
+            .filter(Boolean);
+          setRoles(roleSlugs);
+        }
       }
 
-      if (data) {
-        setProfile(data.profile || null);
-        setRoles(data.roles || []);
-        setCoreConnected(data.core_connected || false);
-      }
+      setCoreConnected(true);
     } catch (err) {
-      console.warn('CORE context fetch error:', err);
+      console.warn('Failed to load CORE profile/roles:', err);
     }
   }, []);
 
   useEffect(() => {
-    // Set up auth listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, currentSession) => {
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
+    let mounted = true;
 
-        if (currentSession) {
-          // Defer CORE context loading to avoid deadlocks
-          setTimeout(() => loadCoreContext(currentSession), 0);
-        } else {
-          setProfile(null);
-          setRoles([]);
-          setCoreConnected(false);
+    const init = async () => {
+      try {
+        const coreClient = await getCoreClient();
+
+        // Set up auth listener on CORE client
+        const { data: { subscription } } = coreClient.auth.onAuthStateChange(
+          async (_event, currentSession) => {
+            if (!mounted) return;
+
+            setSession(currentSession);
+            setUser(currentSession?.user ?? null);
+
+            if (currentSession?.user) {
+              setTimeout(() => {
+                if (mounted) loadProfileAndRoles(coreClient, currentSession.user);
+              }, 0);
+            } else {
+              setProfile(null);
+              setRoles([]);
+              setCoreConnected(false);
+            }
+            setLoading(false);
+          }
+        );
+
+        // Get initial session from CORE
+        const { data: { session: initialSession } } = await coreClient.auth.getSession();
+        if (!mounted) return;
+
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+
+        if (initialSession?.user) {
+          await loadProfileAndRoles(coreClient, initialSession.user);
         }
         setLoading(false);
+
+        return () => {
+          mounted = false;
+          subscription.unsubscribe();
+        };
+      } catch (err) {
+        console.error('Failed to initialize CORE auth:', err);
+        if (mounted) setLoading(false);
       }
-    );
+    };
 
-    // Then get initial session
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      setSession(initialSession);
-      setUser(initialSession?.user ?? null);
+    init();
 
-      if (initialSession) {
-        loadCoreContext(initialSession);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [loadCoreContext]);
+    return () => {
+      mounted = false;
+    };
+  }, [loadProfileAndRoles]);
 
   const hasRole = useCallback((roleSlug: string) => {
     return roles.includes(roleSlug);
@@ -109,7 +143,8 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
   }, [roles]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    const coreClient = await getCoreClient();
+    await coreClient.auth.signOut();
   }, []);
 
   const isAuthenticated = !!user;
