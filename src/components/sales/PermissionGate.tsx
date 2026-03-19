@@ -1,22 +1,28 @@
 import { useSalesAuth } from '@/contexts/SalesAuthContext';
 
 interface PermissionGateProps {
-  permissionKey?: string;
-  requiredScope?: 'own' | 'team' | 'all';
+  /** One or more role slugs; user must have at least one */
+  allowedRoles?: string[];
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }
 
-export function PermissionGate({ permissionKey, requiredScope, children, fallback = null }: PermissionGateProps) {
-  const { hasSalesPermission, canReadOwn, canReadTeam, canReadAll } = useSalesAuth();
+export function PermissionGate({ allowedRoles, children, fallback = null }: PermissionGateProps) {
+  const { hasAnyRole, roles } = useSalesAuth();
 
-  if (permissionKey && !hasSalesPermission(permissionKey)) {
-    return <>{fallback}</>;
+  // If no role restriction, always render
+  if (!allowedRoles || allowedRoles.length === 0) {
+    return <>{children}</>;
   }
 
-  if (requiredScope === 'own' && !canReadOwn()) return <>{fallback}</>;
-  if (requiredScope === 'team' && !canReadTeam()) return <>{fallback}</>;
-  if (requiredScope === 'all' && !canReadAll()) return <>{fallback}</>;
+  // Admin always passes
+  if (roles.includes('admin')) {
+    return <>{children}</>;
+  }
+
+  if (!hasAnyRole(allowedRoles)) {
+    return <>{fallback}</>;
+  }
 
   return <>{children}</>;
 }

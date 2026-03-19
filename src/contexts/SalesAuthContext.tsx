@@ -1,127 +1,134 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { ScopeType } from '@/types/sales';
+import type { Session, User } from '@supabase/supabase-js';
+
+interface CoreProfile {
+  id: string;
+  name?: string;
+  email?: string;
+  avatar_url?: string;
+  [key: string]: any;
+}
 
 interface SalesAuthContextType {
-  userId: string | null;
-  userEmail: string | null;
-  roleCode: string | null;
-  scopeType: ScopeType | null;
-  teamId: string | null;
+  user: User | null;
+  session: Session | null;
+  profile: CoreProfile | null;
+  roles: string[];
   loading: boolean;
-  hasSalesPermission: (permissionKey: string) => boolean;
-  canReadOwn: () => boolean;
-  canReadTeam: () => boolean;
-  canReadAll: () => boolean;
-  permissions: string[];
+  coreConnected: boolean;
+  isAuthenticated: boolean;
+  hasRole: (roleSlug: string) => boolean;
+  hasAnyRole: (roleSlugs: string[]) => boolean;
+  signOut: () => Promise<void>;
 }
 
 const SalesAuthContext = createContext<SalesAuthContextType>({
-  userId: null,
-  userEmail: null,
-  roleCode: null,
-  scopeType: null,
-  teamId: null,
+  user: null,
+  session: null,
+  profile: null,
+  roles: [],
   loading: true,
-  hasSalesPermission: () => false,
-  canReadOwn: () => false,
-  canReadTeam: () => false,
-  canReadAll: () => false,
-  permissions: [],
+  coreConnected: false,
+  isAuthenticated: false,
+  hasRole: () => false,
+  hasAnyRole: () => false,
+  signOut: async () => {},
 });
 
 export const useSalesAuth = () => useContext(SalesAuthContext);
 
 export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [roleCode, setRoleCode] = useState<string | null>(null);
-  const [scopeType, setScopeType] = useState<ScopeType | null>(null);
-  const [teamId, setTeamId] = useState<string | null>(null);
-  const [permissions, setPermissions] = useState<string[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<CoreProfile | null>(null);
+  const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [coreConnected, setCoreConnected] = useState(false);
+
+  const loadCoreContext = useCallback(async (currentSession: Session) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('core-auth-context', {
+        headers: { Authorization: `Bearer ${currentSession.access_token}` },
+      });
+
+      if (error) {
+        console.warn('Failed to load CORE context:', error);
+        return;
+      }
+
+      if (data) {
+        setProfile(data.profile || null);
+        setRoles(data.roles || []);
+        setCoreConnected(data.core_connected || false);
+      }
+    } catch (err) {
+      console.warn('CORE context fetch error:', err);
+    }
+  }, []);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        setUserId(session.user.id);
-        setUserEmail(session.user.email || null);
-        await loadSalesContext(session.user.id);
-      } else {
-        resetState();
-      }
-      setLoading(false);
-    });
+    // Set up auth listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, currentSession) => {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUserId(session.user.id);
-        setUserEmail(session.user.email || null);
-        loadSalesContext(session.user.id);
+        if (currentSession) {
+          // Defer CORE context loading to avoid deadlocks
+          setTimeout(() => loadCoreContext(currentSession), 0);
+        } else {
+          setProfile(null);
+          setRoles([]);
+          setCoreConnected(false);
+        }
+        setLoading(false);
+      }
+    );
+
+    // Then get initial session
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
+
+      if (initialSession) {
+        loadCoreContext(initialSession);
       }
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
+  }, [loadCoreContext]);
+
+  const hasRole = useCallback((roleSlug: string) => {
+    return roles.includes(roleSlug);
+  }, [roles]);
+
+  const hasAnyRole = useCallback((roleSlugs: string[]) => {
+    return roleSlugs.some((slug) => roles.includes(slug));
+  }, [roles]);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
   }, []);
 
-  const resetState = () => {
-    setUserId(null);
-    setUserEmail(null);
-    setRoleCode(null);
-    setScopeType(null);
-    setTeamId(null);
-    setPermissions([]);
-  };
-
-  const loadSalesContext = async (uid: string) => {
-    try {
-      const client = supabase as any;
-      
-      // Get role code via RPC
-      const { data: role } = await client.rpc('rbac_get_user_role_code', {
-        p_user_id: uid,
-        p_app_code: 'sales'
-      });
-      if (role) setRoleCode(role);
-
-      // Get scope type via RPC
-      const { data: scope } = await client.rpc('rbac_get_scope_type', {
-        p_user_id: uid,
-        p_app_code: 'sales'
-      });
-      if (scope) setScopeType(scope as ScopeType);
-
-      // Get team id via RPC
-      const { data: team } = await client.rpc('rbac_get_team_id', {
-        p_user_id: uid,
-        p_app_code: 'sales'
-      });
-      if (team) setTeamId(team);
-
-    } catch (err) {
-      console.warn('Failed to load sales RBAC context:', err);
-      // Defaults for development/testing
-      setRoleCode('admin');
-      setScopeType('all');
-      setPermissions([]);
-    }
-  };
-
-  const hasSalesPermission = (permissionKey: string) => {
-    if (roleCode === 'admin') return true;
-    return permissions.includes(permissionKey);
-  };
-
-  const canReadOwn = () => scopeType === 'own' || scopeType === 'team' || scopeType === 'all';
-  const canReadTeam = () => scopeType === 'team' || scopeType === 'all';
-  const canReadAll = () => scopeType === 'all';
+  const isAuthenticated = !!user;
 
   return (
-    <SalesAuthContext.Provider value={{
-      userId, userEmail, roleCode, scopeType, teamId, loading,
-      hasSalesPermission, canReadOwn, canReadAll, canReadTeam, permissions,
-    }}>
+    <SalesAuthContext.Provider
+      value={{
+        user,
+        session,
+        profile,
+        roles,
+        loading,
+        coreConnected,
+        isAuthenticated,
+        hasRole,
+        hasAnyRole,
+        signOut,
+      }}
+    >
       {children}
     </SalesAuthContext.Provider>
   );
