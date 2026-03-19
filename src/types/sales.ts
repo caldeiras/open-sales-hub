@@ -1,5 +1,4 @@
 // ===== Sales Types =====
-
 // ===== Sales Types =====
 export interface SalesAccount {
   id: string;
