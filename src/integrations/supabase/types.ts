@@ -14,7 +14,141 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      sales_lead_sources: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          sort_order: number
+          source_code: string | null
+          source_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          source_code?: string | null
+          source_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          source_code?: string | null
+          source_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sales_loss_reasons: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          reason_code: string | null
+          reason_name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          reason_code?: string | null
+          reason_name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          reason_code?: string | null
+          reason_name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sales_pipeline_stages: {
+        Row: {
+          color: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          stage_code: string | null
+          stage_name: string
+          stage_order: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          stage_code?: string | null
+          stage_name: string
+          stage_order?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          stage_code?: string | null
+          stage_name?: string
+          stage_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sales_segments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          segment_code: string | null
+          segment_name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          segment_code?: string | null
+          segment_name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          segment_code?: string | null
+          segment_name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

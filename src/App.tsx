@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SalesAuthProvider } from "@/contexts/SalesAuthContext";
+import { AuthGuard } from "@/components/sales/AuthGuard";
 import { SalesLayout } from "@/components/sales/SalesLayout";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -31,24 +32,26 @@ const App = () => (
       <Sonner />
       <SalesAuthProvider>
         <BrowserRouter>
-          <SalesLayout>
-            <Routes>
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/leads" element={<LeadsPage />} />
-              <Route path="/accounts" element={<AccountsPage />} />
-              <Route path="/contacts" element={<ContactsPage />} />
-              <Route path="/opportunities" element={<OpportunitiesPage />} />
-              <Route path="/opportunities/:id" element={<OpportunityDetailPage />} />
-              <Route path="/pipeline" element={<PipelinePage />} />
-              <Route path="/activities" element={<ActivitiesPage />} />
-              <Route path="/proposals" element={<ProposalsPage />} />
-              <Route path="/goals" element={<GoalsPage />} />
-              <Route path="/commissions" element={<CommissionsPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </SalesLayout>
+          <AuthGuard>
+            <SalesLayout>
+              <Routes>
+                <Route path="/" element={<DashboardPage />} />
+                <Route path="/leads" element={<LeadsPage />} />
+                <Route path="/accounts" element={<AccountsPage />} />
+                <Route path="/contacts" element={<ContactsPage />} />
+                <Route path="/opportunities" element={<OpportunitiesPage />} />
+                <Route path="/opportunities/:id" element={<OpportunityDetailPage />} />
+                <Route path="/pipeline" element={<PipelinePage />} />
+                <Route path="/activities" element={<ActivitiesPage />} />
+                <Route path="/proposals" element={<ProposalsPage />} />
+                <Route path="/goals" element={<GoalsPage />} />
+                <Route path="/commissions" element={<CommissionsPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </SalesLayout>
+          </AuthGuard>
         </BrowserRouter>
       </SalesAuthProvider>
     </TooltipProvider>

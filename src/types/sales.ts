@@ -1,39 +1,4 @@
-// ===== RBAC Types =====
-export interface RbacApp {
-  id: string;
-  app_code: string;
-  app_name: string;
-}
-
-export interface RbacRole {
-  id: string;
-  app_id: string;
-  role_code: string;
-  role_name: string;
-  description?: string;
-}
-
-export interface RbacPermission {
-  id: string;
-  app_id: string;
-  permission_key: string;
-  description?: string;
-}
-
-export interface RbacUserRole {
-  id: string;
-  user_id: string;
-  role_id: string;
-  app_id: string;
-}
-
-export interface RbacUserScope {
-  id: string;
-  user_id: string;
-  app_id: string;
-  scope_type: 'own' | 'team' | 'all';
-}
-
+// ===== Sales Types =====
 // ===== Sales Types =====
 export interface SalesAccount {
   id: string;

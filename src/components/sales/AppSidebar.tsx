@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, Building2, Contact, Target, Kanban,
   CalendarCheck, FileText, TrendingUp, DollarSign, BarChart3, Settings,
-  LogOut, ChevronLeft
+  LogOut,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useSalesAuth } from '@/contexts/SalesAuthContext';
@@ -11,7 +11,6 @@ import {
   SidebarHeader, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
 
 const executionItems = [
   { title: 'Visão Geral', url: '/', icon: LayoutDashboard },
@@ -37,11 +36,11 @@ const adminItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  const { userEmail, roleCode } = useSalesAuth();
+  const { user, roles, profile, signOut, hasRole } = useSalesAuth();
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
+  const displayEmail = user?.email || 'Não autenticado';
+  const displayRole = roles.length > 0 ? roles[0] : null;
+  const showAdmin = hasRole('admin') || hasRole('gerente_comercial');
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
@@ -96,33 +95,35 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          {!collapsed && <SidebarGroupLabel className="text-sidebar-muted text-[10px] uppercase tracking-widest">Admin</SidebarGroupLabel>}
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {adminItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
-                      <item.icon className="h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {showAdmin && (
+          <SidebarGroup>
+            {!collapsed && <SidebarGroupLabel className="text-sidebar-muted text-[10px] uppercase tracking-widest">Admin</SidebarGroupLabel>}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink to={item.url} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                        <item.icon className="h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="p-3">
         {!collapsed && (
           <div className="space-y-2">
             <div className="px-2 py-1.5">
-              <p className="text-xs text-sidebar-foreground truncate">{userEmail || 'Não autenticado'}</p>
-              {roleCode && <p className="text-[10px] text-sidebar-muted capitalize">{roleCode}</p>}
+              <p className="text-xs text-sidebar-foreground truncate">{displayEmail}</p>
+              {displayRole && <p className="text-[10px] text-sidebar-muted capitalize">{displayRole}</p>}
             </div>
-            <Button variant="ghost" size="sm" className="w-full justify-start text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent" onClick={handleLogout}>
+            <Button variant="ghost" size="sm" className="w-full justify-start text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent" onClick={signOut}>
               <LogOut className="h-4 w-4 mr-2" />
               Sair
             </Button>
