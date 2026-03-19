@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { getCoreClient } from '@/lib/coreClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,8 +18,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      const coreClient = await getCoreClient();
+
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await coreClient.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: window.location.origin },
@@ -30,7 +32,7 @@ export default function LoginPage() {
           description: 'Verifique seu email para confirmar a conta.',
         });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await coreClient.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
     } catch (err: any) {
