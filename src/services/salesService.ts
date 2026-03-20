@@ -180,6 +180,28 @@ export async function fetchPipelineBoard(status?: string) {
   return salesGet('sales-pipeline-board', status ? { status } : undefined);
 }
 
+// ===== Phase 4: Forecast & Proposal =====
+export async function upsertForecast(data: {
+  opportunity_id: string;
+  probability_percent?: number;
+  expected_close_month?: string;
+}) {
+  return salesPost('sales-opportunity-forecast-upsert', data);
+}
+
+export async function linkProposal(data: {
+  opportunity_id: string;
+  proposal_id?: string;
+  proposal_external_id?: string;
+  proposal_number?: string;
+}) {
+  return salesPost('sales-opportunity-link-proposal', data);
+}
+
+export async function fetchForecastSummary() {
+  return salesGet('sales-forecast-summary');
+}
+
 // ===== Stubs for future features =====
 export async function fetchLeads(_filters?: Record<string, any>) { return []; }
 export async function fetchProposals() { return []; }

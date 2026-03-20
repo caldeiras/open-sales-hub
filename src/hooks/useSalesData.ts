@@ -108,6 +108,35 @@ export function useMoveOpportunityStage() {
   });
 }
 
+// ===== Phase 4: Forecast & Proposal =====
+export function useForecastSummary() {
+  return useQuery({ queryKey: ['forecast-summary'], queryFn: salesService.fetchForecastSummary });
+}
+
+export function useUpsertForecast() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.upsertForecast,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['opportunities'] });
+      qc.invalidateQueries({ queryKey: ['opportunity'] });
+      qc.invalidateQueries({ queryKey: ['forecast-summary'] });
+      qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
+    },
+  });
+}
+
+export function useLinkProposal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.linkProposal,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['opportunities'] });
+      qc.invalidateQueries({ queryKey: ['opportunity'] });
+    },
+  });
+}
+
 // ===== Stubs =====
 export function useLeads(filters?: Record<string, any>) {
   return useQuery({ queryKey: ['leads', filters], queryFn: () => salesService.fetchLeads(filters) });
