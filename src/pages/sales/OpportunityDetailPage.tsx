@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useOpportunity, useStageHistory, usePipelineStages, useActivities, useMoveOpportunityStage, useLossReasons } from '@/hooks/useSalesData';
+import { useOpportunity, useStageHistory, usePipelineStages, useActivities, useMoveOpportunityStage, useLossReasons, useUpsertForecast, useLinkProposal } from '@/hooks/useSalesData';
 import { useSalesAuth } from '@/contexts/SalesAuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from '@/components/sales/StatusBadge';
-import { ArrowLeft, ArrowRight, Clock, Trophy, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, FileText, Percent, Link2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 
@@ -22,9 +22,13 @@ export default function OpportunityDetailPage() {
   const { data: activities = [] } = useActivities({ opportunity_id: id! });
   const { data: lossReasons = [] } = useLossReasons();
   const moveMutation = useMoveOpportunityStage();
+  const forecastMutation = useUpsertForecast();
+  const proposalMutation = useLinkProposal();
   const { hasAnyRole } = useSalesAuth();
 
   const [moveOpen, setMoveOpen] = useState(false);
+  const [forecastOpen, setForecastOpen] = useState(false);
+  const [proposalOpen, setProposalOpen] = useState(false);
   const [toStageId, setToStageId] = useState('');
   const [moveNotes, setMoveNotes] = useState('');
   const [moveStatus, setMoveStatus] = useState('');
@@ -32,7 +36,7 @@ export default function OpportunityDetailPage() {
   const [wonAmount, setWonAmount] = useState('');
   const [wonMRR, setWonMRR] = useState('');
 
-  const canMove = hasAnyRole(['admin', 'gerente_comercial', 'comercial']);
+  const canEdit = hasAnyRole(['admin', 'gerente_comercial', 'comercial']);
 
   const activeStages = useMemo(() =>
     stages.filter((s: any) => s.is_active).sort((a: any, b: any) => a.stage_order - b.stage_order),
@@ -44,24 +48,38 @@ export default function OpportunityDetailPage() {
   const handleMove = async () => {
     if (!toStageId) return;
     const payload: any = { opportunity_id: id!, to_stage_id: toStageId, notes: moveNotes || undefined };
-    if (moveStatus === 'won') {
-      payload.status = 'won';
-      if (wonAmount) payload.amount = parseFloat(wonAmount);
-      if (wonMRR) payload.monthly_value = parseFloat(wonMRR);
-    } else if (moveStatus === 'lost') {
-      if (!lossReasonId) { toast.error('Selecione o motivo da perda'); return; }
-      payload.status = 'lost';
-      payload.loss_reason_id = lossReasonId;
-    } else if (moveStatus === 'hold') {
-      payload.status = 'hold';
-    }
+    if (moveStatus === 'won') { payload.status = 'won'; if (wonAmount) payload.amount = parseFloat(wonAmount); if (wonMRR) payload.monthly_value = parseFloat(wonMRR); }
+    else if (moveStatus === 'lost') { if (!lossReasonId) { toast.error('Selecione o motivo'); return; } payload.status = 'lost'; payload.loss_reason_id = lossReasonId; }
+    else if (moveStatus === 'hold') { payload.status = 'hold'; }
+    try { await moveMutation.mutateAsync(payload); toast.success('Estágio atualizado'); setMoveOpen(false); }
+    catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleForecast = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const prob = fd.get('probability_percent') ? Number(fd.get('probability_percent')) : undefined;
+    const month = fd.get('expected_close_month') as string || undefined;
+    if (prob !== undefined && (prob < 0 || prob > 100)) { toast.error('Probabilidade entre 0 e 100'); return; }
     try {
-      await moveMutation.mutateAsync(payload);
-      toast.success('Estágio atualizado');
-      setMoveOpen(false);
-    } catch (err: any) {
-      toast.error(err.message || 'Erro ao mover');
-    }
+      await forecastMutation.mutateAsync({ opportunity_id: id!, probability_percent: prob, expected_close_month: month ? `${month}-01` : undefined });
+      toast.success('Forecast atualizado');
+      setForecastOpen(false);
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleProposal = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    try {
+      await proposalMutation.mutateAsync({
+        opportunity_id: id!,
+        proposal_external_id: fd.get('proposal_external_id') as string || undefined,
+        proposal_number: fd.get('proposal_number') as string || undefined,
+      });
+      toast.success('Proposta vinculada');
+      setProposalOpen(false);
+    } catch (err: any) { toast.error(err.message); }
   };
 
   if (isLoading) {
@@ -101,16 +119,26 @@ export default function OpportunityDetailPage() {
           </div>
         </div>
 
-        {canMove && opp.status === 'open' && (
-          <Button variant="outline" size="sm" onClick={() => { setMoveOpen(true); setToStageId(''); setMoveNotes(''); setMoveStatus(''); }}>
-            <ArrowRight className="h-3.5 w-3.5 mr-1" /> Mover Estágio
-          </Button>
+        {canEdit && (
+          <div className="flex gap-1.5 flex-wrap">
+            {opp.status === 'open' && (
+              <Button variant="outline" size="sm" onClick={() => { setMoveOpen(true); setToStageId(''); setMoveNotes(''); setMoveStatus(''); }}>
+                <ArrowRight className="h-3.5 w-3.5 mr-1" /> Mover
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setForecastOpen(true)}>
+              <Percent className="h-3.5 w-3.5 mr-1" /> Forecast
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setProposalOpen(true)}>
+              <Link2 className="h-3.5 w-3.5 mr-1" /> Proposta
+            </Button>
+          </div>
         )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Data */}
           <Card>
             <CardHeader><CardTitle className="text-base">Dados da Oportunidade</CardTitle></CardHeader>
             <CardContent>
@@ -118,7 +146,10 @@ export default function OpportunityDetailPage() {
                 {[
                   { label: 'Valor', value: formatCurrency(opp.amount) },
                   { label: 'MRR', value: formatCurrency(opp.monthly_value) },
+                  { label: 'Probabilidade', value: opp.probability_percent !== null && opp.probability_percent !== undefined ? `${opp.probability_percent}%` : '—' },
+                  { label: 'Ponderado', value: formatCurrency(opp.weighted_amount) },
                   { label: 'Previsão', value: opp.close_date ? new Date(opp.close_date).toLocaleDateString('pt-BR') : '—' },
+                  { label: 'Mês Previsto', value: opp.expected_close_month ? new Date(opp.expected_close_month).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : '—' },
                   { label: 'Temperatura', value: opp.temperature || '—' },
                   { label: 'Status', value: opp.status },
                 ].map((item) => (
@@ -128,6 +159,18 @@ export default function OpportunityDetailPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Proposal link */}
+              {(opp.proposal_number || opp.proposal_external_id) && (
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><FileText className="h-3 w-3" /> Proposta Vinculada</p>
+                  <div className="flex gap-4">
+                    {opp.proposal_number && <p className="text-sm font-medium">Nº {opp.proposal_number}</p>}
+                    {opp.proposal_external_id && <p className="text-sm text-muted-foreground">ID: {opp.proposal_external_id}</p>}
+                  </div>
+                </div>
+              )}
+
               {opp.notes && (
                 <div className="mt-4 pt-4 border-t">
                   <p className="text-xs text-muted-foreground mb-1">Notas</p>
@@ -151,9 +194,7 @@ export default function OpportunityDetailPage() {
                         <p className="text-sm font-medium">{a.subject}</p>
                         <p className="text-xs text-muted-foreground">{a.activity_type} • {a.status}</p>
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        {a.due_at ? new Date(a.due_at).toLocaleDateString('pt-BR') : '—'}
-                      </span>
+                      <span className="text-xs text-muted-foreground">{a.due_at ? new Date(a.due_at).toLocaleDateString('pt-BR') : '—'}</span>
                     </div>
                   ))}
                 </div>
@@ -162,7 +203,6 @@ export default function OpportunityDetailPage() {
           </Card>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-6">
           {/* Stage History */}
           <Card>
@@ -178,15 +218,11 @@ export default function OpportunityDetailPage() {
                       <div className="flex items-center gap-1 flex-wrap">
                         {h.from_stage && (
                           <>
-                            <span className="text-xs px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: h.from_stage.color || 'hsl(var(--muted))' }}>
-                              {h.from_stage.stage_name}
-                            </span>
+                            <span className="text-xs px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: h.from_stage.color || 'hsl(var(--muted))' }}>{h.from_stage.stage_name}</span>
                             <span className="text-xs text-muted-foreground">→</span>
                           </>
                         )}
-                        <span className="text-xs px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: h.to_stage?.color || 'hsl(var(--primary))' }}>
-                          {h.to_stage?.stage_name || '—'}
-                        </span>
+                        <span className="text-xs px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: h.to_stage?.color || 'hsl(var(--primary))' }}>{h.to_stage?.stage_name || '—'}</span>
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-1">{new Date(h.changed_at).toLocaleString('pt-BR')}</p>
                       {h.notes && <p className="text-xs mt-0.5">{h.notes}</p>}
@@ -227,11 +263,7 @@ export default function OpportunityDetailPage() {
               <Label>Novo Estágio</Label>
               <Select value={toStageId} onValueChange={setToStageId}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  {activeStages.map((s: any) => (
-                    <SelectItem key={s.id} value={s.id}>{s.stage_name}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{activeStages.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.stage_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
@@ -257,25 +289,66 @@ export default function OpportunityDetailPage() {
                 <Label>Motivo *</Label>
                 <Select value={lossReasonId} onValueChange={setLossReasonId}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {lossReasons.filter((r: any) => r.is_active).map((r: any) => (
-                      <SelectItem key={r.id} value={r.id}>{r.reason_name}</SelectItem>
-                    ))}
-                  </SelectContent>
+                  <SelectContent>{lossReasons.filter((r: any) => r.is_active).map((r: any) => <SelectItem key={r.id} value={r.id}>{r.reason_name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             )}
-            <div className="space-y-2">
-              <Label>Observação</Label>
-              <Textarea value={moveNotes} onChange={(e) => setMoveNotes(e.target.value)} rows={2} />
-            </div>
+            <div className="space-y-2"><Label>Observação</Label><Textarea value={moveNotes} onChange={(e) => setMoveNotes(e.target.value)} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setMoveOpen(false)}>Cancelar</Button>
-            <Button onClick={handleMove} disabled={!toStageId || moveMutation.isPending}>
-              {moveMutation.isPending ? 'Movendo...' : 'Confirmar'}
-            </Button>
+            <Button onClick={handleMove} disabled={!toStageId || moveMutation.isPending}>{moveMutation.isPending ? 'Movendo...' : 'Confirmar'}</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Forecast Dialog */}
+      <Dialog open={forecastOpen} onOpenChange={setForecastOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Atualizar Forecast</DialogTitle></DialogHeader>
+          <form onSubmit={handleForecast} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Probabilidade (%)</Label>
+              <Input name="probability_percent" type="number" min="0" max="100" step="1" defaultValue={opp.probability_percent ?? ''} placeholder="0-100" />
+              {opp.status === 'won' && <p className="text-xs text-muted-foreground">Won = 100% automático</p>}
+              {opp.status === 'lost' && <p className="text-xs text-muted-foreground">Lost = 0% automático</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Mês previsto de fechamento</Label>
+              <Input name="expected_close_month" type="month" defaultValue={opp.expected_close_month?.substring(0, 7) || ''} />
+            </div>
+            {opp.amount && opp.probability_percent !== null && (
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <p className="text-xs text-muted-foreground">Valor ponderado atual</p>
+                <p className="text-lg font-bold text-primary">{formatCurrency(opp.weighted_amount)}</p>
+              </div>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setForecastOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={forecastMutation.isPending}>{forecastMutation.isPending ? 'Salvando...' : 'Salvar'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Link Proposal Dialog */}
+      <Dialog open={proposalOpen} onOpenChange={setProposalOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Vincular Proposta</DialogTitle></DialogHeader>
+          <form onSubmit={handleProposal} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Número da Proposta</Label>
+              <Input name="proposal_number" defaultValue={opp.proposal_number || ''} placeholder="Ex: PROP-2026-001" />
+            </div>
+            <div className="space-y-2">
+              <Label>ID Externo</Label>
+              <Input name="proposal_external_id" defaultValue={opp.proposal_external_id || ''} placeholder="ID do sistema de propostas" />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setProposalOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={proposalMutation.isPending}>{proposalMutation.isPending ? 'Salvando...' : 'Vincular'}</Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
