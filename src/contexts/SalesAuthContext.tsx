@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { getCoreClient } from '@/lib/coreClient';
+import { getIdentityClient } from '@/lib/identityClient';
 import type { Session, User, SupabaseClient } from '@supabase/supabase-js';
 
 interface CoreProfile {
@@ -16,7 +16,6 @@ interface SalesAuthContextType {
   profile: CoreProfile | null;
   roles: string[];
   loading: boolean;
-  coreConnected: boolean;
   isAuthenticated: boolean;
   hasRole: (roleSlug: string) => boolean;
   hasAnyRole: (roleSlugs: string[]) => boolean;
@@ -29,7 +28,6 @@ const SalesAuthContext = createContext<SalesAuthContextType>({
   profile: null,
   roles: [],
   loading: true,
-  coreConnected: false,
   isAuthenticated: false,
   hasRole: () => false,
   hasAnyRole: () => false,
@@ -44,12 +42,10 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<CoreProfile | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [coreConnected, setCoreConnected] = useState(false);
 
-  const loadProfileAndRoles = useCallback(async (coreClient: SupabaseClient, currentUser: User) => {
+  const loadProfileAndRoles = useCallback(async (identityClient: SupabaseClient, currentUser: User) => {
     try {
-      // Read profile directly from CORE
-      const { data: profileData } = await coreClient
+      const { data: profileData } = await identityClient
         .from('profiles')
         .select('*')
         .eq('email', currentUser.email)
@@ -58,7 +54,7 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(profileData || null);
 
       if (profileData) {
-        const { data: userRoles } = await coreClient
+        const { data: userRoles } = await identityClient
           .from('user_roles')
           .select('role:roles(slug, name)')
           .eq('user_id', profileData.id || profileData.user_id);
@@ -70,10 +66,8 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
           setRoles(roleSlugs);
         }
       }
-
-      setCoreConnected(true);
     } catch (err) {
-      console.warn('Failed to load CORE profile/roles:', err);
+      console.warn('Failed to load IDENTITY profile/roles:', err);
     }
   }, []);
 
@@ -82,10 +76,9 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
 
     const init = async () => {
       try {
-        const coreClient = await getCoreClient();
+        const identityClient = await getIdentityClient();
 
-        // Set up auth listener on CORE client
-        const { data: { subscription } } = coreClient.auth.onAuthStateChange(
+        const { data: { subscription } } = identityClient.auth.onAuthStateChange(
           async (_event, currentSession) => {
             if (!mounted) return;
 
@@ -94,26 +87,24 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
 
             if (currentSession?.user) {
               setTimeout(() => {
-                if (mounted) loadProfileAndRoles(coreClient, currentSession.user);
+                if (mounted) loadProfileAndRoles(identityClient, currentSession.user);
               }, 0);
             } else {
               setProfile(null);
               setRoles([]);
-              setCoreConnected(false);
             }
             setLoading(false);
           }
         );
 
-        // Get initial session from CORE
-        const { data: { session: initialSession } } = await coreClient.auth.getSession();
+        const { data: { session: initialSession } } = await identityClient.auth.getSession();
         if (!mounted) return;
 
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
 
         if (initialSession?.user) {
-          await loadProfileAndRoles(coreClient, initialSession.user);
+          await loadProfileAndRoles(identityClient, initialSession.user);
         }
         setLoading(false);
 
@@ -122,7 +113,7 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
           subscription.unsubscribe();
         };
       } catch (err) {
-        console.error('Failed to initialize CORE auth:', err);
+        console.error('Failed to initialize IDENTITY auth:', err);
         if (mounted) setLoading(false);
       }
     };
@@ -134,20 +125,13 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [loadProfileAndRoles]);
 
-  const hasRole = useCallback((roleSlug: string) => {
-    return roles.includes(roleSlug);
-  }, [roles]);
-
-  const hasAnyRole = useCallback((roleSlugs: string[]) => {
-    return roleSlugs.some((slug) => roles.includes(slug));
-  }, [roles]);
+  const hasRole = useCallback((roleSlug: string) => roles.includes(roleSlug), [roles]);
+  const hasAnyRole = useCallback((roleSlugs: string[]) => roleSlugs.some((s) => roles.includes(s)), [roles]);
 
   const signOut = useCallback(async () => {
-    const coreClient = await getCoreClient();
-    await coreClient.auth.signOut();
+    const identityClient = await getIdentityClient();
+    await identityClient.auth.signOut();
   }, []);
-
-  const isAuthenticated = !!user;
 
   return (
     <SalesAuthContext.Provider
@@ -157,8 +141,7 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         roles,
         loading,
-        coreConnected,
-        isAuthenticated,
+        isAuthenticated: !!user,
         hasRole,
         hasAnyRole,
         signOut,

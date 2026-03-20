@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getCoreClient } from '@/lib/coreClient';
+import { getIdentityClient } from '@/lib/identityClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -18,23 +17,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const coreClient = await getCoreClient();
-
-      if (isSignUp) {
-        const { error } = await coreClient.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: window.location.origin },
-        });
-        if (error) throw error;
-        toast({
-          title: 'Cadastro realizado',
-          description: 'Verifique seu email para confirmar a conta.',
-        });
-      } else {
-        const { error } = await coreClient.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      }
+      const identityClient = await getIdentityClient();
+      const { error } = await identityClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
     } catch (err: any) {
       toast({
         title: 'Erro',
@@ -54,9 +39,7 @@ export default function LoginPage() {
             <span className="text-primary-foreground font-bold text-sm">OS</span>
           </div>
           <CardTitle className="text-lg">OPEN SALES</CardTitle>
-          <CardDescription>
-            {isSignUp ? 'Crie sua conta' : 'Entre com suas credenciais'}
-          </CardDescription>
+          <CardDescription>Entre com suas credenciais do CORE</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -84,18 +67,12 @@ export default function LoginPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Carregando...' : isSignUp ? 'Cadastrar' : 'Entrar'}
+              {loading ? 'Entrando...' : 'Entrar'}
             </Button>
           </form>
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              className="text-sm text-muted-foreground hover:text-foreground underline"
-              onClick={() => setIsSignUp(!isSignUp)}
-            >
-              {isSignUp ? 'Já tem conta? Entrar' : 'Não tem conta? Cadastrar'}
-            </button>
-          </div>
+          <p className="mt-4 text-xs text-center text-muted-foreground">
+            Use suas credenciais do sistema CORE para acessar.
+          </p>
         </CardContent>
       </Card>
     </div>
