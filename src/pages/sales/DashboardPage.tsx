@@ -254,6 +254,67 @@ export default function DashboardPage() {
               </Card>
             )}
           </TabsContent>
+
+          {/* GOALS & RANKING TAB */}
+          <TabsContent value="goals" className="space-y-6">
+            {/* Goal Performance */}
+            {goalPerf?.performance?.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3">Metas do Mês</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {goalPerf.performance.map((g: any) => {
+                    const pct = g.percent_achieved || 0;
+                    const metricLabels: Record<string, string> = { mrr: 'MRR', tcv: 'TCV', won_count: 'Contratos', meetings: 'Reuniões', proposals: 'Propostas' };
+                    return (
+                      <Card key={g.id}>
+                        <CardContent className="p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-medium text-muted-foreground">{metricLabels[g.metric] || g.metric}</p>
+                            <span className={`text-xs font-semibold ${pct >= 100 ? 'text-[hsl(var(--success))]' : pct >= 70 ? 'text-[hsl(var(--warning))]' : 'text-destructive'}`}>{pct}%</span>
+                          </div>
+                          <Progress value={Math.min(pct, 100)} className="h-1.5" />
+                          <div className="flex justify-between text-xs">
+                            <span className="font-medium">{g.metric === 'mrr' || g.metric === 'tcv' ? formatCurrency(g.achieved_from_data) : g.achieved_from_data}</span>
+                            <span className="text-muted-foreground">de {g.metric === 'mrr' || g.metric === 'tcv' ? formatCurrency(Number(g.target_value)) : g.target_value}</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Ranking */}
+            {ranking?.ranking?.length > 0 && (
+              <Card>
+                <CardHeader><CardTitle className="text-base font-semibold flex items-center gap-2"><Trophy className="h-4 w-4" /> Ranking</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {ranking.ranking.slice(0, 10).map((r: any, idx: number) => (
+                      <div key={r.owner_user_id} className="flex items-center gap-3 py-2 border-b last:border-0">
+                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                          idx === 0 ? 'bg-amber-100 text-amber-800' : idx === 1 ? 'bg-slate-100 text-slate-700' : idx === 2 ? 'bg-orange-100 text-orange-800' : 'bg-muted text-muted-foreground'
+                        }`}>#{idx + 1}</span>
+                        <span className="flex-1 text-sm font-mono text-muted-foreground">{r.owner_user_id.substring(0, 8)}...</span>
+                        <span className="text-sm font-semibold text-[hsl(var(--success))]">{formatCurrency(r.new_mrr)} MRR</span>
+                        {r.commission_total > 0 && <span className="text-xs text-primary">{formatCurrency(r.commission_total)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {(!goalPerf?.performance?.length && !ranking?.ranking?.length) && (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <Target className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">Nenhuma meta ou ranking disponível</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
         </Tabs>
       )}
 
