@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, Building2, Contact, Target, Kanban,
   CalendarCheck, FileText, TrendingUp, DollarSign, BarChart3, Settings,
   LogOut, UsersRound, Map, Briefcase, BookOpen, MessageSquare, Bell,
-  Brain, FileQuestion,
+  Brain, FileQuestion, Shield,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useSalesAuth } from '@/contexts/SalesAuthContext';
@@ -44,6 +44,7 @@ const structureItems = [
 ];
 
 const adminItems = [
+  { title: 'RBAC', url: '/rbac', icon: Shield },
   { title: 'Configurações', url: '/settings', icon: Settings },
   { title: 'Docs', url: '/docs', icon: FileQuestion },
 ];

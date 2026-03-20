@@ -30,6 +30,7 @@ import TemplatesPage from "./pages/sales/TemplatesPage";
 import AlertsPage from "./pages/sales/AlertsPage";
 import PriorityPage from "./pages/sales/PriorityPage";
 import DocsPage from "./pages/sales/DocsPage";
+import RbacPage from "./pages/sales/RbacPage";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,7 @@ const App = () => (
                 <Route path="/templates" element={<TemplatesPage />} />
                 <Route path="/alerts" element={<AlertsPage />} />
                 <Route path="/priority" element={<PriorityPage />} />
+                <Route path="/rbac" element={<RbacPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/docs" element={<DocsPage />} />
                 <Route path="*" element={<NotFound />} />
