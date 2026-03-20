@@ -36,8 +36,8 @@ serve(async (req) => {
     }
 
     // Connect to CORE Supabase to read profiles/roles
-    const coreUrl = Deno.env.get("CORE_SUPABASE_URL");
-    const coreAnonKey = Deno.env.get("CORE_SUPABASE_ANON_KEY");
+    const coreUrl = Deno.env.get("IDENTITY_SUPABASE_URL");
+    const coreAnonKey = Deno.env.get("IDENTITY_SUPABASE_ANON_KEY");
 
     if (!coreUrl || !coreAnonKey) {
       // Fallback: if CORE credentials not set, return minimal context
