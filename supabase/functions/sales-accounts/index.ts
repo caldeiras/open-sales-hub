@@ -41,7 +41,6 @@ serve(async (req) => {
       };
 
       if (body.id) {
-        // Update — check ownership
         if (!auth.isAdmin && !auth.isManager) {
           const { data: existing } = await db.from("sales_accounts").select("owner_user_id").eq("id", body.id).single();
           if (existing?.owner_user_id !== auth.userId) return errorResponse(403, "Not your record");
@@ -50,7 +49,7 @@ serve(async (req) => {
         if (error) return errorResponse(400, error.message);
         return jsonResponse(data);
       } else {
-        const { data, error } = await db.from("sales_accounts").insert(record).select().single();
+        const { data, error } = await db.from("sales_accounts").insert({ ...record, created_by_user_id: auth.userId }).select().single();
         if (error) return errorResponse(400, error.message);
         return jsonResponse(data, 201);
       }
