@@ -115,11 +115,11 @@ export async function upsertActivity(data: any) {
   return salesPost('sales-activities', data);
 }
 
-// ===== Config tables (via commercial proxy) =====
+// ===== Config tables (via commercial proxy POST) =====
 async function fetchConfigTable(table: string, orderColumn: string) {
-  return invokeFunction('sales-commercial-proxy', {
-    body: { table, operation: 'select', select: '*', order: { column: orderColumn, ascending: true } },
-  });
+  return salesPost('sales-commercial-proxy', {
+    table, operation: 'select', select: '*', order: { column: orderColumn, ascending: true },
+  }).then(res => res.data || res);
 }
 
 export async function fetchLeadSources() {

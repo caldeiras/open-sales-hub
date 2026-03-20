@@ -55,7 +55,7 @@ serve(async (req) => {
     for (const opp of opps) {
       const daysSinceUpdate = Math.floor((now.getTime() - new Date(opp.updated_at).getTime()) / 86400000);
       const hasActivity = hasRecentActivity.has(opp.id);
-      const stageOrder = stageOrderMap[opp.stage_id] || 0;
+      const stageOrder = stageOrderMap[opp.pipeline_stage_id] || 0;
       const isAdvanced = stageOrder / maxOrder > 0.6;
       const value = opp.mrr || opp.monthly_value || opp.amount || 0;
       const isHighValue = value > 5000;

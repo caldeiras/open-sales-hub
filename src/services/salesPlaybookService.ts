@@ -1,4 +1,3 @@
-import { supabase } from '@/integrations/supabase/client';
 import { getIdentityClient } from '@/lib/identityClient';
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
