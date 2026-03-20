@@ -15,7 +15,7 @@ serve(async (req) => {
     // 1. Fetch all open opportunities with stage info
     const { data: opps, error: oppErr } = await db
       .from("sales_opportunities")
-      .select("id, owner_user_id, stage_id, amount, monthly_value, mrr, updated_at, created_at")
+      .select("id, owner_user_id, pipeline_stage_id, amount, monthly_value, mrr, updated_at, created_at")
       .in("status", ["open", "negotiation", "proposal"])
       .limit(1000);
 
