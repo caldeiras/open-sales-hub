@@ -22,6 +22,9 @@ import GoalsPage from "./pages/sales/GoalsPage";
 import CommissionsPage from "./pages/sales/CommissionsPage";
 import ReportsPage from "./pages/sales/ReportsPage";
 import SettingsPage from "./pages/sales/SettingsPage";
+import TeamsPage from "./pages/sales/TeamsPage";
+import TerritoriesPage from "./pages/sales/TerritoriesPage";
+import PortfolioPage from "./pages/sales/PortfolioPage";
 
 const queryClient = new QueryClient();
 
