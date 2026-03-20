@@ -10,8 +10,11 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const identityUrl = Deno.env.get("CORE_SUPABASE_URL");
-  const identityAnonKey = Deno.env.get("CORE_SUPABASE_ANON_KEY");
+  // IDENTITY project: macmkfoknhofnwhizsqc — auth, profiles, user_roles
+  const identityUrl = Deno.env.get("IDENTITY_SUPABASE_URL");
+  const identityAnonKey = Deno.env.get("IDENTITY_SUPABASE_ANON_KEY");
+
+  // COMMERCIAL project: zkjrcenhemnnlmjiysbc — proposals, contracts, pricing
   const commercialUrl = Deno.env.get("COMMERCIAL_SUPABASE_URL");
   const commercialAnonKey = Deno.env.get("COMMERCIAL_SUPABASE_ANON_KEY");
 
