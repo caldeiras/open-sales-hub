@@ -21,7 +21,7 @@ serve(async (req) => {
 
     // Fetch activities with ownership filter
     let actQuery = db.from("sales_activities").select("id, status, due_at, owner_user_id, opportunity_id");
-    actQuery = applyOwnershipFilter(actQuery, auth);
+    actQuery = await applyOwnershipFilter(actQuery, auth);
     const { data: activities = [], error: actErr } = await actQuery;
     if (actErr) return errorResponse(400, actErr.message);
 
