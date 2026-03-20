@@ -97,6 +97,16 @@ serve(async (req) => {
         proposal_id: body.proposal_id || null,
         proposal_external_id: body.proposal_external_id || null,
         proposal_number: body.proposal_number || null,
+        // Revenue fields
+        contract_type: body.contract_type || null,
+        billing_cycle: body.billing_cycle || null,
+        mrr: body.mrr !== undefined ? (body.mrr ? Number(body.mrr) : null) : undefined,
+        tcv: body.tcv !== undefined ? (body.tcv ? Number(body.tcv) : null) : undefined,
+        contract_start_date: body.contract_start_date || null,
+        contract_end_date: body.contract_end_date || null,
+        is_expansion: body.is_expansion || false,
+        is_renewal: body.is_renewal || false,
+        is_churn: body.is_churn || false,
       };
 
       if (body.id) {
