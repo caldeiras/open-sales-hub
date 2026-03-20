@@ -45,7 +45,7 @@ serve(async (req) => {
     let wonQuery = db.from("sales_opportunities")
       .select("id, owner_user_id, mrr, tcv, status")
       .eq("status", "won");
-    wonQuery = applyOwnershipFilter(wonQuery, auth);
+    wonQuery = await applyOwnershipFilter(wonQuery, auth);
     const { data: wonOpps = [] } = await wonQuery;
 
     // Calculate actuals per owner

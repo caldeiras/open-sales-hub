@@ -19,7 +19,7 @@ serve(async (req) => {
 
     // Verify ownership of the opportunity
     let oppQuery = db.from("sales_opportunities").select("id, owner_user_id").eq("id", opportunityId);
-    oppQuery = applyOwnershipFilter(oppQuery, auth);
+    oppQuery = await applyOwnershipFilter(oppQuery, auth);
     const { data: opp } = await oppQuery.single();
     if (!opp) return errorResponse(404, "Opportunity not found or not accessible");
 
