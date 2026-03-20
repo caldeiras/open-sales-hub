@@ -50,6 +50,7 @@ export default function DashboardPage() {
           <TabsList>
             <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
             <TabsTrigger value="revenue">Receita</TabsTrigger>
+            <TabsTrigger value="goals">Metas & Ranking</TabsTrigger>
           </TabsList>
 
           {/* PIPELINE TAB */}
