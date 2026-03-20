@@ -52,19 +52,19 @@ async function resolveRoles(
   user: any,
   jwtPayload: Record<string, any>
 ): Promise<{ roles: string[]; permissions: string[] }> {
-  // Source 1: Local RBAC tables (canonical)
+  // Source 1: Commercial RBAC tables (canonical)
   try {
-    const localDb = getLocalClient();
-    const { data: localRoles, error: rolesErr } = await localDb.rpc("rbac_get_user_roles", { p_user_id: user.id });
+    const commercialDb = getCommercialClient();
+    const { data: localRoles, error: rolesErr } = await commercialDb.rpc("rbac_get_user_roles", { p_user_id: user.id });
 
     if (!rolesErr && Array.isArray(localRoles) && localRoles.length > 0) {
-      console.log("[sales-auth] Roles from local RBAC:", localRoles);
-      const { data: localPerms } = await localDb.rpc("rbac_get_user_permissions", { p_user_id: user.id });
+      console.log("[sales-auth] Roles from commercial RBAC:", localRoles);
+      const { data: localPerms } = await commercialDb.rpc("rbac_get_user_permissions", { p_user_id: user.id });
       return { roles: localRoles, permissions: Array.isArray(localPerms) ? localPerms : [] };
     }
-    console.log("[sales-auth] No local RBAC roles found, checking fallbacks");
+    console.log("[sales-auth] No commercial RBAC roles found, checking fallbacks");
   } catch (err: any) {
-    console.warn("[sales-auth] Local RBAC lookup failed:", err?.message);
+    console.warn("[sales-auth] Commercial RBAC lookup failed:", err?.message);
   }
 
   // Source 2: app_metadata
