@@ -54,7 +54,9 @@ export function useUpsertContact() {
 
 // ===== Opportunities =====
 export function useOpportunities(filters?: Record<string, any>) {
-  return useQuery({ queryKey: ['opportunities', filters], queryFn: () => salesService.fetchOpportunities(filters) });
+  const enabled = filters?._enabled !== false;
+  const cleanFilters = filters ? Object.fromEntries(Object.entries(filters).filter(([k]) => !k.startsWith('_'))) : undefined;
+  return useQuery({ queryKey: ['opportunities', cleanFilters], queryFn: () => salesService.fetchOpportunities(cleanFilters), enabled });
 }
 
 export function useOpportunity(id: string) {
