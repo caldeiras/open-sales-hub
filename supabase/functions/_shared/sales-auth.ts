@@ -153,8 +153,8 @@ export function getCommercialClient() {
  */
 export async function checkPermission(userId: string, permission: string): Promise<boolean> {
   try {
-    const commercialDb = getCommercialClient();
-    const { data } = await commercialDb.rpc("rbac_user_has_permission", {
+    const localDb = getLocalClient();
+    const { data } = await localDb.rpc("rbac_user_has_permission", {
       p_user_id: userId,
       p_permission: permission,
     });
