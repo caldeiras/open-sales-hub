@@ -293,8 +293,16 @@ export async function fetchTeamSummary(teamId?: string) {
   return salesGet('sales-team-summary', teamId ? { team_id: teamId } : undefined);
 }
 
+// ===== Leads =====
+export async function fetchLeads(filters?: Record<string, any>) {
+  return salesGet('sales-leads', filters as any);
+}
+
+export async function upsertLead(data: any) {
+  return salesPost('sales-leads', data);
+}
+
 // ===== Stubs for future features =====
-export async function fetchLeads(_filters?: Record<string, any>) { return []; }
 export async function fetchProposals() { return []; }
 export async function fetchNotes(_entityType: string, _entityId: string) { return []; }
 export async function fetchTags() { return []; }

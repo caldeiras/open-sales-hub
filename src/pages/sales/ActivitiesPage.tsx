@@ -14,13 +14,15 @@ import { Plus, Pencil } from 'lucide-react';
 
 export default function ActivitiesPage() {
   const { data: activities = [], isLoading } = useActivities();
-  const { data: accounts = [] } = useAccounts();
-  const { data: opportunities = [] } = useOpportunities();
-  const { data: contacts = [] } = useContacts();
   const upsert = useUpsertActivity();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+
+  // Only load dropdown data when dialog is open to avoid unnecessary requests
+  const { data: accounts = [] } = useAccounts(dialogOpen ? {} : { _enabled: false });
+  const { data: opportunities = [] } = useOpportunities(dialogOpen ? {} : { _enabled: false });
+  const { data: contacts = [] } = useContacts(dialogOpen ? {} : { _enabled: false });
 
   const openNew = () => { setEditing(null); setDialogOpen(true); };
   const openEdit = (item: any) => { setEditing(item); setDialogOpen(true); };

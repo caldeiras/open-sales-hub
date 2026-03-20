@@ -20,7 +20,9 @@ export function useLossReasons() {
 
 // ===== Accounts =====
 export function useAccounts(filters?: Record<string, any>) {
-  return useQuery({ queryKey: ['accounts', filters], queryFn: () => salesService.fetchAccounts(filters) });
+  const enabled = filters?._enabled !== false;
+  const cleanFilters = filters ? Object.fromEntries(Object.entries(filters).filter(([k]) => !k.startsWith('_'))) : undefined;
+  return useQuery({ queryKey: ['accounts', cleanFilters], queryFn: () => salesService.fetchAccounts(cleanFilters), enabled });
 }
 
 export function useAccount(id: string) {
@@ -37,7 +39,9 @@ export function useUpsertAccount() {
 
 // ===== Contacts =====
 export function useContacts(filters?: Record<string, any>) {
-  return useQuery({ queryKey: ['contacts', filters], queryFn: () => salesService.fetchContacts(filters) });
+  const enabled = filters?._enabled !== false;
+  const cleanFilters = filters ? Object.fromEntries(Object.entries(filters).filter(([k]) => !k.startsWith('_'))) : undefined;
+  return useQuery({ queryKey: ['contacts', cleanFilters], queryFn: () => salesService.fetchContacts(cleanFilters), enabled });
 }
 
 export function useUpsertContact() {
@@ -50,7 +54,9 @@ export function useUpsertContact() {
 
 // ===== Opportunities =====
 export function useOpportunities(filters?: Record<string, any>) {
-  return useQuery({ queryKey: ['opportunities', filters], queryFn: () => salesService.fetchOpportunities(filters) });
+  const enabled = filters?._enabled !== false;
+  const cleanFilters = filters ? Object.fromEntries(Object.entries(filters).filter(([k]) => !k.startsWith('_'))) : undefined;
+  return useQuery({ queryKey: ['opportunities', cleanFilters], queryFn: () => salesService.fetchOpportunities(cleanFilters), enabled });
 }
 
 export function useOpportunity(id: string) {
@@ -287,10 +293,20 @@ export function useTeamSummary(teamId?: string) {
   return useQuery({ queryKey: ['team-summary', teamId], queryFn: () => salesService.fetchTeamSummary(teamId) });
 }
 
-// ===== Stubs =====
+// ===== Leads =====
 export function useLeads(filters?: Record<string, any>) {
   return useQuery({ queryKey: ['leads', filters], queryFn: () => salesService.fetchLeads(filters) });
 }
+
+export function useUpsertLead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.upsertLead,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['leads'] }); },
+  });
+}
+
+// ===== Stubs =====
 
 export function useProposals() {
   return useQuery({ queryKey: ['proposals'], queryFn: salesService.fetchProposals });
