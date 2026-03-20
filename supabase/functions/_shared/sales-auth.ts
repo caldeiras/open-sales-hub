@@ -28,6 +28,7 @@ export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
   const identityUrl = Deno.env.get("IDENTITY_SUPABASE_URL")!;
   const identityAnonKey = Deno.env.get("IDENTITY_SUPABASE_ANON_KEY")!;
 
+  // Client with user's JWT for getUser validation
   const identityClient = createClient(identityUrl, identityAnonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: authHeader } },
@@ -36,39 +37,74 @@ export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
   const token = authHeader.replace("Bearer ", "");
   const { data: userData, error } = await identityClient.auth.getUser(token);
   if (error || !userData?.user) {
+    console.error("[sales-auth] getUser failed:", error?.message);
     throw { status: 401, message: "Invalid identity token" };
   }
 
   const user = userData.user;
+  console.log("[sales-auth] User authenticated:", user.id, user.email);
 
+  // Fetch roles — use service_role if available to bypass RLS on identity tables
   let roles: string[] = [];
+  const identityServiceKey = Deno.env.get("IDENTITY_SERVICE_ROLE_KEY");
+  const roleClient = identityServiceKey
+    ? createClient(identityUrl, identityServiceKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+    : identityClient;
+
   try {
-    const { data: profile } = await identityClient
+    // Try profile lookup by auth user id first, then by email
+    let profileId: string | null = null;
+
+    const { data: profileById } = await roleClient
       .from("profiles")
       .select("id")
-      .eq("email", user.email)
+      .eq("id", user.id)
       .maybeSingle();
 
-    if (profile) {
-      const { data: userRoles } = await identityClient
+    if (profileById) {
+      profileId = profileById.id;
+    } else {
+      const { data: profileByEmail } = await roleClient
+        .from("profiles")
+        .select("id")
+        .eq("email", user.email)
+        .maybeSingle();
+      profileId = profileByEmail?.id || null;
+    }
+
+    console.log("[sales-auth] Profile lookup result:", profileId);
+
+    if (profileId) {
+      const { data: userRoles, error: rolesError } = await roleClient
         .from("user_roles")
         .select("role:roles(slug)")
-        .eq("user_id", profile.id);
+        .eq("user_id", profileId);
 
-      if (userRoles) {
-        roles = userRoles.map((ur: any) => ur.role?.slug).filter(Boolean);
+      if (rolesError) {
+        console.error("[sales-auth] Roles query error:", rolesError.message);
+      } else {
+        console.log("[sales-auth] Raw userRoles:", JSON.stringify(userRoles));
+        roles = (userRoles || []).map((ur: any) => ur.role?.slug).filter(Boolean);
       }
     }
-  } catch {
-    // Roles fetch failed — proceed with empty roles
+  } catch (err: any) {
+    console.error("[sales-auth] Roles fetch exception:", err?.message || err);
   }
+
+  console.log("[sales-auth] Resolved roles:", roles);
 
   const isAdmin = roles.includes("admin");
   const isManager = roles.includes("gerente_comercial");
   const isCommercial = roles.includes("comercial");
 
   if (!COMMERCIAL_ROLES.some((r) => roles.includes(r))) {
-    throw { status: 403, message: "No commercial access" };
+    console.error("[sales-auth] BLOCKED - no commercial role. User:", user.id, "Roles:", roles);
+    throw {
+      status: 403,
+      message: `User lacks commercial role. Found roles: [${roles.join(", ")}]. Required: ${COMMERCIAL_ROLES.join(", ")}`,
+    };
   }
 
   return { userId: user.id, email: user.email!, roles, isAdmin, isManager, isCommercial };
