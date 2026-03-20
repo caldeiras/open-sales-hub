@@ -28,7 +28,7 @@ serve(async (req) => {
       id, title, amount, monthly_value, close_date, status, temperature, owner_user_id, pipeline_stage_id,
       account:sales_accounts(id, name)
     `);
-    oppQuery = applyOwnershipFilter(oppQuery, auth);
+    oppQuery = await applyOwnershipFilter(oppQuery, auth);
     if (statusFilter) oppQuery = oppQuery.eq("status", statusFilter);
 
     const { data: opportunities = [], error } = await oppQuery.order("created_at", { ascending: false });
