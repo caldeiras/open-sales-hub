@@ -54,12 +54,12 @@ async function resolveRoles(
 ): Promise<{ roles: string[]; permissions: string[] }> {
   // Source 1: Local RBAC tables (canonical)
   try {
-    const commercialDb = getCommercialClient();
-    const { data: localRoles, error: rolesErr } = await commercialDb.rpc("rbac_get_user_roles", { p_user_id: user.id });
+    const localDb = getLocalClient();
+    const { data: localRoles, error: rolesErr } = await localDb.rpc("rbac_get_user_roles", { p_user_id: user.id });
 
     if (!rolesErr && Array.isArray(localRoles) && localRoles.length > 0) {
       console.log("[sales-auth] Roles from local RBAC:", localRoles);
-      const { data: localPerms } = await commercialDb.rpc("rbac_get_user_permissions", { p_user_id: user.id });
+      const { data: localPerms } = await localDb.rpc("rbac_get_user_permissions", { p_user_id: user.id });
       return { roles: localRoles, permissions: Array.isArray(localPerms) ? localPerms : [] };
     }
     console.log("[sales-auth] No local RBAC roles found, checking fallbacks");
@@ -153,8 +153,8 @@ export function getCommercialClient() {
  */
 export async function checkPermission(userId: string, permission: string): Promise<boolean> {
   try {
-    const commercialDb = getCommercialClient();
-    const { data } = await commercialDb.rpc("rbac_user_has_permission", {
+    const localDb = getLocalClient();
+    const { data } = await localDb.rpc("rbac_user_has_permission", {
       p_user_id: userId,
       p_permission: permission,
     });
