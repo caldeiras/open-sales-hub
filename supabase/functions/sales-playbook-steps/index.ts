@@ -38,6 +38,7 @@ serve(async (req) => {
           step_order: i + 1,
           type: s.type,
           delay_days: s.delay_days ?? 0,
+          delay_hours: s.delay_hours ?? 0,
           template_id: s.template_id || null,
           subject: s.subject || null,
           description: s.description || null,
