@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -22,9 +23,10 @@ export default function OpportunitiesPage() {
   const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [contractType, setContractType] = useState<string>('');
 
-  const openNew = () => { setEditing(null); setDialogOpen(true); };
-  const openEdit = (item: any) => { setEditing(item); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setContractType(''); setDialogOpen(true); };
+  const openEdit = (item: any) => { setEditing(item); setContractType(item.contract_type || ''); setDialogOpen(true); };
 
   const formatCurrency = (v: number) => v ? `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` : '—';
 
@@ -33,7 +35,6 @@ export default function OpportunitiesPage() {
     const fd = new FormData(e.currentTarget);
     const status = fd.get('status') as string || 'open';
 
-    // Validate lost requires loss_reason
     if (status === 'lost' && !fd.get('loss_reason_id')) {
       toast({ title: 'Erro', description: 'Motivo de perda é obrigatório', variant: 'destructive' });
       return;
@@ -58,6 +59,16 @@ export default function OpportunitiesPage() {
       notes: fd.get('notes') || null,
       probability_percent: status === 'won' ? 100 : status === 'lost' ? 0 : probability,
       expected_close_month: fd.get('expected_close_month') || null,
+      // Revenue fields
+      contract_type: fd.get('contract_type') || null,
+      billing_cycle: fd.get('billing_cycle') || null,
+      mrr: fd.get('mrr') ? Number(fd.get('mrr')) : null,
+      tcv: fd.get('tcv') ? Number(fd.get('tcv')) : null,
+      contract_start_date: fd.get('contract_start_date') || null,
+      contract_end_date: fd.get('contract_end_date') || null,
+      is_expansion: fd.get('is_expansion') === 'on',
+      is_renewal: fd.get('is_renewal') === 'on',
+      is_churn: fd.get('is_churn') === 'on',
     };
     if (editing?.id) payload.id = editing.id;
 
@@ -75,9 +86,10 @@ export default function OpportunitiesPage() {
     { key: 'account', header: 'Empresa', render: (item) => item.account?.name || '—', sortable: true },
     { key: 'stage', header: 'Etapa', render: (item) => item.stage ? <StageBadge stage={item.stage.stage_name} color={item.stage.color} /> : '—' },
     { key: 'status', header: 'Status', render: (item) => <StatusBadge status={item.status} /> },
+    { key: 'contract_type', header: 'Tipo', render: (item) => item.contract_type === 'recurring' ? 'Recorrente' : item.contract_type === 'one_time' ? 'Pontual' : '—' },
     { key: 'amount', header: 'Valor', render: (item) => formatCurrency(item.amount), className: 'text-right' },
+    { key: 'mrr', header: 'MRR', render: (item) => formatCurrency(item.mrr), className: 'text-right' },
     { key: 'probability_percent', header: 'Prob.', render: (item) => item.probability_percent !== null && item.probability_percent !== undefined ? `${item.probability_percent}%` : '—', className: 'text-right' },
-    { key: 'weighted_amount', header: 'Ponderado', render: (item) => formatCurrency(item.weighted_amount), className: 'text-right' },
     { key: 'close_date', header: 'Previsão', sortable: true, render: (item) => item.close_date ? new Date(item.close_date).toLocaleDateString('pt-BR') : '—' },
     { key: 'actions', header: '', className: 'w-10', render: (item) => (
       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); openEdit(item); }}>
@@ -127,13 +139,57 @@ export default function OpportunitiesPage() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="amount">Valor total</Label>
+                <Label htmlFor="amount">Valor total (TCV)</Label>
                 <Input id="amount" name="amount" type="number" step="0.01" defaultValue={editing?.amount || ''} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="monthly_value">Valor mensal</Label>
                 <Input id="monthly_value" name="monthly_value" type="number" step="0.01" defaultValue={editing?.monthly_value || ''} />
               </div>
+
+              {/* Revenue fields */}
+              <div className="space-y-1.5">
+                <Label>Tipo de contrato</Label>
+                <Select name="contract_type" defaultValue={editing?.contract_type || ''} onValueChange={setContractType}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recurring">Recorrente</SelectItem>
+                    <SelectItem value="one_time">Pontual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Ciclo de cobrança</Label>
+                <Select name="billing_cycle" defaultValue={editing?.billing_cycle || ''}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="annual">Anual</SelectItem>
+                    <SelectItem value="one_time">Pontual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {contractType === 'recurring' && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="mrr">MRR</Label>
+                    <Input id="mrr" name="mrr" type="number" step="0.01" defaultValue={editing?.mrr || ''} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tcv">TCV</Label>
+                    <Input id="tcv" name="tcv" type="number" step="0.01" defaultValue={editing?.tcv || ''} />
+                  </div>
+                </>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="contract_start_date">Início do contrato</Label>
+                <Input id="contract_start_date" name="contract_start_date" type="date" defaultValue={editing?.contract_start_date || ''} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="contract_end_date">Fim do contrato</Label>
+                <Input id="contract_end_date" name="contract_end_date" type="date" defaultValue={editing?.contract_end_date || ''} />
+              </div>
+
               <div className="space-y-1.5">
                 <Label htmlFor="probability_percent">Probabilidade (%)</Label>
                 <Input id="probability_percent" name="probability_percent" type="number" min="0" max="100" step="1" defaultValue={editing?.probability_percent ?? ''} placeholder="0-100" />
@@ -177,6 +233,22 @@ export default function OpportunitiesPage() {
                     {lossReasons.map((r: any) => <SelectItem key={r.id} value={r.id}>{r.reason_name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Flags */}
+              <div className="col-span-2 flex items-center gap-6 pt-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox name="is_expansion" defaultChecked={editing?.is_expansion || false} />
+                  Expansão
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox name="is_renewal" defaultChecked={editing?.is_renewal || false} />
+                  Renovação
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox name="is_churn" defaultChecked={editing?.is_churn || false} />
+                  Churn
+                </label>
               </div>
             </div>
             <div className="space-y-1.5">

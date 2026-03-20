@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useOpportunity, useStageHistory, usePipelineStages, useActivities, useMoveOpportunityStage, useLossReasons, useUpsertForecast, useLinkProposal } from '@/hooks/useSalesData';
+import { useOpportunity, useStageHistory, usePipelineStages, useActivities, useMoveOpportunityStage, useLossReasons, useUpsertForecast, useLinkProposal, useMarkWon, useMarkLost, useRevenueEvents } from '@/hooks/useSalesData';
 import { useSalesAuth } from '@/contexts/SalesAuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from '@/components/sales/StatusBadge';
-import { ArrowLeft, ArrowRight, Clock, FileText, Percent, Link2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, FileText, Percent, Link2, Trophy, XCircle, DollarSign } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 
@@ -21,14 +21,19 @@ export default function OpportunityDetailPage() {
   const { data: stages = [] } = usePipelineStages();
   const { data: activities = [] } = useActivities({ opportunity_id: id! });
   const { data: lossReasons = [] } = useLossReasons();
+  const { data: revenueEvents = [] } = useRevenueEvents({ opportunity_id: id! });
   const moveMutation = useMoveOpportunityStage();
   const forecastMutation = useUpsertForecast();
   const proposalMutation = useLinkProposal();
+  const markWonMutation = useMarkWon();
+  const markLostMutation = useMarkLost();
   const { hasAnyRole } = useSalesAuth();
 
   const [moveOpen, setMoveOpen] = useState(false);
   const [forecastOpen, setForecastOpen] = useState(false);
   const [proposalOpen, setProposalOpen] = useState(false);
+  const [wonOpen, setWonOpen] = useState(false);
+  const [lostOpen, setLostOpen] = useState(false);
   const [toStageId, setToStageId] = useState('');
   const [moveNotes, setMoveNotes] = useState('');
   const [moveStatus, setMoveStatus] = useState('');
@@ -82,6 +87,42 @@ export default function OpportunityDetailPage() {
     } catch (err: any) { toast.error(err.message); }
   };
 
+  const handleMarkWon = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    try {
+      await markWonMutation.mutateAsync({
+        opportunity_id: id!,
+        amount: fd.get('amount') ? Number(fd.get('amount')) : undefined,
+        mrr: fd.get('mrr') ? Number(fd.get('mrr')) : undefined,
+        tcv: fd.get('tcv') ? Number(fd.get('tcv')) : undefined,
+        contract_type: fd.get('contract_type') as string || undefined,
+        billing_cycle: fd.get('billing_cycle') as string || undefined,
+        contract_start_date: fd.get('contract_start_date') as string || undefined,
+        contract_end_date: fd.get('contract_end_date') as string || undefined,
+        notes: fd.get('notes') as string || undefined,
+      });
+      toast.success('Oportunidade marcada como GANHA! 🎉');
+      setWonOpen(false);
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleMarkLost = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const reasonId = fd.get('loss_reason_id') as string;
+    if (!reasonId) { toast.error('Motivo obrigatório'); return; }
+    try {
+      await markLostMutation.mutateAsync({
+        opportunity_id: id!,
+        loss_reason_id: reasonId,
+        notes: fd.get('notes') as string || undefined,
+      });
+      toast.success('Oportunidade marcada como perdida');
+      setLostOpen(false);
+    } catch (err: any) { toast.error(err.message); }
+  };
+
   if (isLoading) {
     return <div className="space-y-4">{[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-muted/50 rounded-lg animate-pulse" />)}</div>;
   }
@@ -96,6 +137,7 @@ export default function OpportunityDetailPage() {
   }
 
   const oppActivities = activities.filter((a: any) => a.opportunity_id === id);
+  const contractLabel = opp.contract_type === 'recurring' ? 'Recorrente' : opp.contract_type === 'one_time' ? 'Pontual' : '—';
 
   return (
     <div className="space-y-6">
@@ -108,13 +150,16 @@ export default function OpportunityDetailPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">{opp.title}</h1>
             <p className="text-sm text-muted-foreground">{opp.account?.name || '—'}</p>
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
               <StatusBadge status={opp.status} />
               {opp.stage && (
                 <span className="text-xs px-2 py-0.5 rounded-full font-medium text-white" style={{ backgroundColor: opp.stage.color || 'hsl(var(--primary))' }}>
                   {opp.stage.stage_name}
                 </span>
               )}
+              {opp.is_expansion && <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium">Expansão</span>}
+              {opp.is_renewal && <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium">Renovação</span>}
+              {opp.is_churn && <span className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">Churn</span>}
             </div>
           </div>
         </div>
@@ -122,9 +167,17 @@ export default function OpportunityDetailPage() {
         {canEdit && (
           <div className="flex gap-1.5 flex-wrap">
             {opp.status === 'open' && (
-              <Button variant="outline" size="sm" onClick={() => { setMoveOpen(true); setToStageId(''); setMoveNotes(''); setMoveStatus(''); }}>
-                <ArrowRight className="h-3.5 w-3.5 mr-1" /> Mover
-              </Button>
+              <>
+                <Button variant="outline" size="sm" onClick={() => { setMoveOpen(true); setToStageId(''); setMoveNotes(''); setMoveStatus(''); }}>
+                  <ArrowRight className="h-3.5 w-3.5 mr-1" /> Mover
+                </Button>
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setWonOpen(true)}>
+                  <Trophy className="h-3.5 w-3.5 mr-1" /> Ganhar
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => setLostOpen(true)}>
+                  <XCircle className="h-3.5 w-3.5 mr-1" /> Perder
+                </Button>
+              </>
             )}
             <Button variant="outline" size="sm" onClick={() => setForecastOpen(true)}>
               <Percent className="h-3.5 w-3.5 mr-1" /> Forecast
@@ -138,20 +191,24 @@ export default function OpportunityDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Data */}
+          {/* Financial Data */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Dados da Oportunidade</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><DollarSign className="h-4 w-4" /> Dados Financeiros</CardTitle></CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: 'Valor', value: formatCurrency(opp.amount) },
-                  { label: 'MRR', value: formatCurrency(opp.monthly_value) },
-                  { label: 'Probabilidade', value: opp.probability_percent !== null && opp.probability_percent !== undefined ? `${opp.probability_percent}%` : '—' },
+                  { label: 'Valor (TCV)', value: formatCurrency(opp.amount) },
+                  { label: 'MRR', value: formatCurrency(opp.mrr) },
+                  { label: 'ARR', value: formatCurrency(opp.arr) },
+                  { label: 'TCV', value: formatCurrency(opp.tcv) },
                   { label: 'Ponderado', value: formatCurrency(opp.weighted_amount) },
+                  { label: 'Probabilidade', value: opp.probability_percent !== null && opp.probability_percent !== undefined ? `${opp.probability_percent}%` : '—' },
+                  { label: 'Tipo', value: contractLabel },
+                  { label: 'Ciclo', value: opp.billing_cycle || '—' },
+                  { label: 'Início Contrato', value: opp.contract_start_date ? new Date(opp.contract_start_date).toLocaleDateString('pt-BR') : '—' },
+                  { label: 'Fim Contrato', value: opp.contract_end_date ? new Date(opp.contract_end_date).toLocaleDateString('pt-BR') : '—' },
                   { label: 'Previsão', value: opp.close_date ? new Date(opp.close_date).toLocaleDateString('pt-BR') : '—' },
                   { label: 'Mês Previsto', value: opp.expected_close_month ? new Date(opp.expected_close_month).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : '—' },
-                  { label: 'Temperatura', value: opp.temperature || '—' },
-                  { label: 'Status', value: opp.status },
                 ].map((item) => (
                   <div key={item.label}>
                     <p className="text-xs text-muted-foreground">{item.label}</p>
@@ -160,7 +217,6 @@ export default function OpportunityDetailPage() {
                 ))}
               </div>
 
-              {/* Proposal link */}
               {(opp.proposal_number || opp.proposal_external_id) && (
                 <div className="mt-4 pt-4 border-t">
                   <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><FileText className="h-3 w-3" /> Proposta Vinculada</p>
@@ -175,6 +231,37 @@ export default function OpportunityDetailPage() {
                 <div className="mt-4 pt-4 border-t">
                   <p className="text-xs text-muted-foreground mb-1">Notas</p>
                   <p className="text-sm">{opp.notes}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Revenue Events */}
+          <Card>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><DollarSign className="h-4 w-4" /> Eventos de Receita ({revenueEvents.length})</CardTitle></CardHeader>
+            <CardContent>
+              {revenueEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhum evento de receita</p>
+              ) : (
+                <div className="space-y-3">
+                  {revenueEvents.map((ev: any) => {
+                    const typeLabels: Record<string, string> = { new: 'Nova Venda', expansion: 'Expansão', contraction: 'Contração', churn: 'Churn', renewal: 'Renovação' };
+                    const isNeg = (Number(ev.mrr_delta) || 0) < 0;
+                    return (
+                      <div key={ev.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                        <div>
+                          <p className="text-sm font-medium">{typeLabels[ev.event_type] || ev.event_type}</p>
+                          <p className="text-xs text-muted-foreground">{new Date(ev.event_date).toLocaleDateString('pt-BR')}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-sm font-semibold ${isNeg ? 'text-destructive' : 'text-emerald-600'}`}>
+                            {isNeg ? '' : '+'}{formatCurrency(ev.mrr_delta)} MRR
+                          </p>
+                          {ev.tcv_delta ? <p className="text-xs text-muted-foreground">{formatCurrency(ev.tcv_delta)} TCV</p> : null}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -266,39 +353,100 @@ export default function OpportunityDetailPage() {
                 <SelectContent>{activeStages.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.stage_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Ação adicional</Label>
-              <Select value={moveStatus} onValueChange={setMoveStatus}>
-                <SelectTrigger><SelectValue placeholder="Apenas mover" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="move_only">Apenas mover</SelectItem>
-                  <SelectItem value="won">Marcar Ganho</SelectItem>
-                  <SelectItem value="lost">Marcar Perdido</SelectItem>
-                  <SelectItem value="hold">Hold</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {moveStatus === 'won' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-xs">Valor Final</Label><Input type="number" value={wonAmount} onChange={(e) => setWonAmount(e.target.value)} /></div>
-                <div><Label className="text-xs">MRR Final</Label><Input type="number" value={wonMRR} onChange={(e) => setWonMRR(e.target.value)} /></div>
-              </div>
-            )}
-            {moveStatus === 'lost' && (
-              <div className="space-y-2">
-                <Label>Motivo *</Label>
-                <Select value={lossReasonId} onValueChange={setLossReasonId}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>{lossReasons.filter((r: any) => r.is_active).map((r: any) => <SelectItem key={r.id} value={r.id}>{r.reason_name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            )}
             <div className="space-y-2"><Label>Observação</Label><Textarea value={moveNotes} onChange={(e) => setMoveNotes(e.target.value)} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setMoveOpen(false)}>Cancelar</Button>
             <Button onClick={handleMove} disabled={!toStageId || moveMutation.isPending}>{moveMutation.isPending ? 'Movendo...' : 'Confirmar'}</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark Won Dialog */}
+      <Dialog open={wonOpen} onOpenChange={setWonOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-emerald-600" /> Marcar como Ganha</DialogTitle></DialogHeader>
+          <form onSubmit={handleMarkWon} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Valor final</Label>
+                <Input name="amount" type="number" step="0.01" defaultValue={opp.amount || ''} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>MRR</Label>
+                <Input name="mrr" type="number" step="0.01" defaultValue={opp.mrr || ''} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>TCV</Label>
+                <Input name="tcv" type="number" step="0.01" defaultValue={opp.tcv || opp.amount || ''} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tipo de contrato</Label>
+                <Select name="contract_type" defaultValue={opp.contract_type || 'one_time'}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recurring">Recorrente</SelectItem>
+                    <SelectItem value="one_time">Pontual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Ciclo</Label>
+                <Select name="billing_cycle" defaultValue={opp.billing_cycle || ''}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="annual">Anual</SelectItem>
+                    <SelectItem value="one_time">Pontual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Início do contrato</Label>
+                <Input name="contract_start_date" type="date" defaultValue={opp.contract_start_date || ''} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Fim do contrato</Label>
+                <Input name="contract_end_date" type="date" defaultValue={opp.contract_end_date || ''} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Observação</Label>
+              <Textarea name="notes" rows={2} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setWonOpen(false)}>Cancelar</Button>
+              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700" disabled={markWonMutation.isPending}>
+                {markWonMutation.isPending ? 'Salvando...' : 'Confirmar Ganho'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark Lost Dialog */}
+      <Dialog open={lostOpen} onOpenChange={setLostOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><XCircle className="h-5 w-5 text-destructive" /> Marcar como Perdida</DialogTitle></DialogHeader>
+          <form onSubmit={handleMarkLost} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Motivo da perda *</Label>
+              <Select name="loss_reason_id">
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>{lossReasons.filter((r: any) => r.is_active).map((r: any) => <SelectItem key={r.id} value={r.id}>{r.reason_name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Observação</Label>
+              <Textarea name="notes" rows={2} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setLostOpen(false)}>Cancelar</Button>
+              <Button type="submit" variant="destructive" disabled={markLostMutation.isPending}>
+                {markLostMutation.isPending ? 'Salvando...' : 'Confirmar Perda'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -310,8 +458,6 @@ export default function OpportunityDetailPage() {
             <div className="space-y-2">
               <Label>Probabilidade (%)</Label>
               <Input name="probability_percent" type="number" min="0" max="100" step="1" defaultValue={opp.probability_percent ?? ''} placeholder="0-100" />
-              {opp.status === 'won' && <p className="text-xs text-muted-foreground">Won = 100% automático</p>}
-              {opp.status === 'lost' && <p className="text-xs text-muted-foreground">Lost = 0% automático</p>}
             </div>
             <div className="space-y-2">
               <Label>Mês previsto de fechamento</Label>

@@ -137,6 +137,47 @@ export function useLinkProposal() {
   });
 }
 
+// ===== Phase 5: Revenue Engine =====
+export function useRevenueSummary() {
+  return useQuery({ queryKey: ['revenue-summary'], queryFn: salesService.fetchRevenueSummary });
+}
+
+export function useRevenueEvents(filters?: Record<string, string>) {
+  return useQuery({ queryKey: ['revenue-events', filters], queryFn: () => salesService.fetchRevenueEvents(filters) });
+}
+
+export function useMarkWon() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.markOpportunityWon,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['opportunities'] });
+      qc.invalidateQueries({ queryKey: ['opportunity'] });
+      qc.invalidateQueries({ queryKey: ['pipeline-board'] });
+      qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      qc.invalidateQueries({ queryKey: ['forecast-summary'] });
+      qc.invalidateQueries({ queryKey: ['revenue-summary'] });
+      qc.invalidateQueries({ queryKey: ['revenue-events'] });
+    },
+  });
+}
+
+export function useMarkLost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.markOpportunityLost,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['opportunities'] });
+      qc.invalidateQueries({ queryKey: ['opportunity'] });
+      qc.invalidateQueries({ queryKey: ['pipeline-board'] });
+      qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      qc.invalidateQueries({ queryKey: ['forecast-summary'] });
+      qc.invalidateQueries({ queryKey: ['revenue-summary'] });
+      qc.invalidateQueries({ queryKey: ['revenue-events'] });
+    },
+  });
+}
+
 // ===== Stubs =====
 export function useLeads(filters?: Record<string, any>) {
   return useQuery({ queryKey: ['leads', filters], queryFn: () => salesService.fetchLeads(filters) });
