@@ -32,7 +32,18 @@ import PriorityPage from "./pages/sales/PriorityPage";
 import DocsPage from "./pages/sales/DocsPage";
 import RbacPage from "./pages/sales/RbacPage";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error: any) => {
+        const status = error?.status || error?.response?.status;
+        if (status === 401 || status === 403) return false;
+        return failureCount < 1;
+      },
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
