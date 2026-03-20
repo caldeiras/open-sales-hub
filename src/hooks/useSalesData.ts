@@ -20,7 +20,9 @@ export function useLossReasons() {
 
 // ===== Accounts =====
 export function useAccounts(filters?: Record<string, any>) {
-  return useQuery({ queryKey: ['accounts', filters], queryFn: () => salesService.fetchAccounts(filters) });
+  const enabled = filters?._enabled !== false;
+  const cleanFilters = filters ? Object.fromEntries(Object.entries(filters).filter(([k]) => !k.startsWith('_'))) : undefined;
+  return useQuery({ queryKey: ['accounts', cleanFilters], queryFn: () => salesService.fetchAccounts(cleanFilters), enabled });
 }
 
 export function useAccount(id: string) {
