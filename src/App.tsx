@@ -28,6 +28,7 @@ import PortfolioPage from "./pages/sales/PortfolioPage";
 import PlaybooksPage from "./pages/sales/PlaybooksPage";
 import TemplatesPage from "./pages/sales/TemplatesPage";
 import AlertsPage from "./pages/sales/AlertsPage";
+import PriorityPage from "./pages/sales/PriorityPage";
 
 const queryClient = new QueryClient();
 
