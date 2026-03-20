@@ -1,8 +1,9 @@
-import { useForecastSummary, useActivities, useRevenueSummary } from '@/hooks/useSalesData';
+import { useForecastSummary, useActivities, useRevenueSummary, useRankingSummary, useGoalPerformance } from '@/hooks/useSalesData';
 import { useSalesAuth } from '@/contexts/SalesAuthContext';
 import { KPICard } from '@/components/sales/KPICard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
 import { DollarSign, Target, TrendingUp, AlertTriangle, CalendarCheck, Trophy, XCircle, BarChart3, Percent, TrendingDown, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
 
 export default function DashboardPage() {
