@@ -17,7 +17,98 @@ export interface AuthContext {
 const COMMERCIAL_ROLES = ["admin", "gerente_comercial", "comercial"];
 
 /**
- * Validates the Identity JWT and fetches roles from the Identity project.
+ * Decode JWT payload without verification (validation is done by getUser).
+ */
+function decodeJwtPayload(token: string): Record<string, any> {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return {};
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return payload || {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Extract roles from multiple sources (no service_role needed):
+ * 1. app_metadata.roles (array) or app_metadata.role (string)
+ * 2. JWT custom claims (user_roles, roles)
+ * 3. DB query using user's own JWT context
+ */
+async function resolveRoles(
+  identityClient: any,
+  user: any,
+  jwtPayload: Record<string, any>
+): Promise<string[]> {
+  // Source 1: app_metadata
+  const meta = user.app_metadata || {};
+  if (Array.isArray(meta.roles) && meta.roles.length > 0) {
+    console.log("[sales-auth] Roles from app_metadata.roles:", meta.roles);
+    return meta.roles;
+  }
+  if (typeof meta.role === "string" && meta.role) {
+    console.log("[sales-auth] Role from app_metadata.role:", meta.role);
+    return [meta.role];
+  }
+
+  // Source 2: JWT custom claims
+  const claimRoles = jwtPayload.user_roles || jwtPayload.roles;
+  if (Array.isArray(claimRoles) && claimRoles.length > 0) {
+    console.log("[sales-auth] Roles from JWT claims:", claimRoles);
+    return claimRoles;
+  }
+  if (typeof claimRoles === "string" && claimRoles) {
+    return [claimRoles];
+  }
+
+  // Source 3: DB query with user's own JWT (respects RLS)
+  console.log("[sales-auth] Falling back to DB role lookup with user JWT");
+  try {
+    let profileId: string | null = null;
+
+    const { data: profileById } = await identityClient
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileById) {
+      profileId = profileById.id;
+    } else {
+      const { data: profileByEmail } = await identityClient
+        .from("profiles")
+        .select("id")
+        .eq("email", user.email)
+        .maybeSingle();
+      profileId = profileByEmail?.id || null;
+    }
+
+    console.log("[sales-auth] Profile lookup:", profileId);
+
+    if (profileId) {
+      const { data: userRoles, error: rolesError } = await identityClient
+        .from("user_roles")
+        .select("role:roles(slug)")
+        .eq("user_id", profileId);
+
+      if (rolesError) {
+        console.error("[sales-auth] Roles query error:", rolesError.message);
+      } else {
+        const slugs = (userRoles || []).map((ur: any) => ur.role?.slug).filter(Boolean);
+        console.log("[sales-auth] Roles from DB:", slugs);
+        return slugs;
+      }
+    }
+  } catch (err: any) {
+    console.error("[sales-auth] DB role lookup failed:", err?.message || err);
+  }
+
+  return [];
+}
+
+/**
+ * Validates the Identity JWT and resolves roles without privileged keys.
  */
 export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
   const authHeader = req.headers.get("Authorization");
@@ -28,7 +119,6 @@ export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
   const identityUrl = Deno.env.get("IDENTITY_SUPABASE_URL")!;
   const identityAnonKey = Deno.env.get("IDENTITY_SUPABASE_ANON_KEY")!;
 
-  // Client with user's JWT for getUser validation
   const identityClient = createClient(identityUrl, identityAnonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: authHeader } },
@@ -42,58 +132,11 @@ export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
   }
 
   const user = userData.user;
+  const jwtPayload = decodeJwtPayload(token);
   console.log("[sales-auth] User authenticated:", user.id, user.email);
 
-  // Fetch roles — use service_role if available to bypass RLS on identity tables
-  let roles: string[] = [];
-  const identityServiceKey = Deno.env.get("IDENTITY_SERVICE_ROLE_KEY");
-  const roleClient = identityServiceKey
-    ? createClient(identityUrl, identityServiceKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      })
-    : identityClient;
-
-  try {
-    // Try profile lookup by auth user id first, then by email
-    let profileId: string | null = null;
-
-    const { data: profileById } = await roleClient
-      .from("profiles")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileById) {
-      profileId = profileById.id;
-    } else {
-      const { data: profileByEmail } = await roleClient
-        .from("profiles")
-        .select("id")
-        .eq("email", user.email)
-        .maybeSingle();
-      profileId = profileByEmail?.id || null;
-    }
-
-    console.log("[sales-auth] Profile lookup result:", profileId);
-
-    if (profileId) {
-      const { data: userRoles, error: rolesError } = await roleClient
-        .from("user_roles")
-        .select("role:roles(slug)")
-        .eq("user_id", profileId);
-
-      if (rolesError) {
-        console.error("[sales-auth] Roles query error:", rolesError.message);
-      } else {
-        console.log("[sales-auth] Raw userRoles:", JSON.stringify(userRoles));
-        roles = (userRoles || []).map((ur: any) => ur.role?.slug).filter(Boolean);
-      }
-    }
-  } catch (err: any) {
-    console.error("[sales-auth] Roles fetch exception:", err?.message || err);
-  }
-
-  console.log("[sales-auth] Resolved roles:", roles);
+  const roles = await resolveRoles(identityClient, user, jwtPayload);
+  console.log("[sales-auth] Final resolved roles:", roles);
 
   const isAdmin = roles.includes("admin");
   const isManager = roles.includes("gerente_comercial");
@@ -103,7 +146,7 @@ export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
     console.error("[sales-auth] BLOCKED - no commercial role. User:", user.id, "Roles:", roles);
     throw {
       status: 403,
-      message: `User lacks commercial role. Found roles: [${roles.join(", ")}]. Required: ${COMMERCIAL_ROLES.join(", ")}`,
+      message: `User lacks commercial role. Found roles: [${roles.join(", ")}]. Required one of: ${COMMERCIAL_ROLES.join(", ")}`,
     };
   }
 
