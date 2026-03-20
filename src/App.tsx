@@ -28,6 +28,7 @@ import PortfolioPage from "./pages/sales/PortfolioPage";
 import PlaybooksPage from "./pages/sales/PlaybooksPage";
 import TemplatesPage from "./pages/sales/TemplatesPage";
 import AlertsPage from "./pages/sales/AlertsPage";
+import PriorityPage from "./pages/sales/PriorityPage";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,7 @@ const App = () => (
                 <Route path="/playbooks" element={<PlaybooksPage />} />
                 <Route path="/templates" element={<TemplatesPage />} />
                 <Route path="/alerts" element={<AlertsPage />} />
+                <Route path="/priority" element={<PriorityPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -2,6 +2,7 @@ import {
   LayoutDashboard, Users, Building2, Contact, Target, Kanban,
   CalendarCheck, FileText, TrendingUp, DollarSign, BarChart3, Settings,
   LogOut, UsersRound, Map, Briefcase, BookOpen, MessageSquare, Bell,
+  Brain,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useSalesAuth } from '@/contexts/SalesAuthContext';
@@ -27,6 +28,7 @@ const cadenceItems = [
   { title: 'Playbooks', url: '/playbooks', icon: BookOpen },
   { title: 'Templates', url: '/templates', icon: MessageSquare },
   { title: 'Alertas', url: '/alerts', icon: Bell },
+  { title: 'Inteligência', url: '/priority', icon: Brain },
 ];
 
 const resultItems = [
