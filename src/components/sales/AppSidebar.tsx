@@ -45,6 +45,7 @@ const structureItems = [
 
 const adminItems = [
   { title: 'Configurações', url: '/settings', icon: Settings },
+  { title: 'Docs', url: '/docs', icon: FileQuestion },
 ];
 
 export function AppSidebar() {

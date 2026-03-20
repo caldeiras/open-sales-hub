@@ -63,6 +63,7 @@ const App = () => (
                 <Route path="/alerts" element={<AlertsPage />} />
                 <Route path="/priority" element={<PriorityPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/docs" element={<DocsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </SalesLayout>
