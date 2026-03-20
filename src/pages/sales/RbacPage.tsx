@@ -16,32 +16,56 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+} from '@/components/ui/accordion';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Plus, Trash2, Search, Users, Key, Lock } from 'lucide-react';
+import { Shield, Plus, Trash2, Users, Key, Lock, Pencil } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+
+function formatDate(dateStr: string | null | undefined) {
+  if (!dateStr) return '—';
+  try {
+    return new Date(dateStr).toLocaleDateString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+    });
+  } catch { return '—'; }
+}
+
+function truncateUuid(uuid: string) {
+  if (!uuid || uuid.length < 12) return uuid || '—';
+  return `${uuid.slice(0, 8)}…${uuid.slice(-4)}`;
+}
 
 export default function RbacPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('users');
   const [assignDialog, setAssignDialog] = useState(false);
   const [assignUserId, setAssignUserId] = useState('');
   const [assignRoleId, setAssignRoleId] = useState('');
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
 
+  // ===== QUERIES =====
   const { data: roles = [], isLoading: rolesLoading } = useQuery({
     queryKey: ['rbac-roles'],
     queryFn: fetchRoles,
+    enabled: activeTab === 'roles' || assignDialog,
   });
 
   const { data: permissions = [], isLoading: permsLoading } = useQuery({
     queryKey: ['rbac-permissions'],
     queryFn: fetchPermissions,
+    enabled: activeTab === 'permissions',
   });
 
   const { data: usersRoles = [], isLoading: usersLoading } = useQuery({
     queryKey: ['rbac-users-roles'],
     queryFn: fetchUsersWithRoles,
+    enabled: activeTab === 'users',
   });
 
   const { data: rolePerms = [] } = useQuery({
@@ -50,18 +74,27 @@ export default function RbacPage() {
     enabled: !!selectedRoleId,
   });
 
+  // Roles for assign dialog
+  const { data: assignRoles = [] } = useQuery({
+    queryKey: ['rbac-roles'],
+    queryFn: fetchRoles,
+    enabled: assignDialog,
+  });
+
+  // ===== MUTATIONS =====
   const assignMut = useMutation({
     mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
       assignRole(userId, roleId),
     onSuccess: () => {
       toast({ title: 'Papel atribuído com sucesso' });
       qc.invalidateQueries({ queryKey: ['rbac-users-roles'] });
+      qc.invalidateQueries({ queryKey: ['rbac-roles'] });
       setAssignDialog(false);
       setAssignUserId('');
       setAssignRoleId('');
     },
     onError: (err: any) =>
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+      toast({ title: 'Erro ao atribuir papel', description: err.message, variant: 'destructive' }),
   });
 
   const removeMut = useMutation({
@@ -70,15 +103,13 @@ export default function RbacPage() {
     onSuccess: () => {
       toast({ title: 'Papel removido' });
       qc.invalidateQueries({ queryKey: ['rbac-users-roles'] });
+      qc.invalidateQueries({ queryKey: ['rbac-roles'] });
     },
     onError: (err: any) =>
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+      toast({ title: 'Erro ao remover papel', description: err.message, variant: 'destructive' }),
   });
 
-  const filteredUsers = usersRoles.filter((u: any) =>
-    !search || u.user_id?.toLowerCase().includes(search.toLowerCase())
-  );
-
+  // ===== GROUP PERMISSIONS BY MODULE =====
   const moduleGroups = permissions.reduce((acc: Record<string, any[]>, p: any) => {
     const mod = p.module || 'other';
     if (!acc[mod]) acc[mod] = [];
@@ -86,8 +117,15 @@ export default function RbacPage() {
     return acc;
   }, {});
 
+  const TableSkeleton = () => (
+    <div className="space-y-2">
+      {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -102,7 +140,8 @@ export default function RbacPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="users">
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="users" className="gap-1.5">
             <Users className="h-3.5 w-3.5" /> Usuários
@@ -117,70 +156,70 @@ export default function RbacPage() {
 
         {/* ===== USERS TAB ===== */}
         <TabsContent value="users" className="space-y-4">
-          <div className="relative max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por user_id..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-
-          {usersLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
-            </div>
-          ) : filteredUsers.length === 0 ? (
+          {usersLoading ? <TableSkeleton /> : usersRoles.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <Users className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                <p className="text-muted-foreground">Nenhum usuário com papéis atribuídos</p>
+                <p className="text-muted-foreground">Nenhum usuário com papel atribuído</p>
                 <Button variant="outline" size="sm" className="mt-3" onClick={() => setAssignDialog(true)}>
                   Atribuir primeiro papel
                 </Button>
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
-              {filteredUsers.map((u: any) => (
-                <Card key={u.user_id}>
-                  <CardContent className="py-3 px-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-mono text-foreground">{u.user_id}</p>
-                      <div className="flex gap-1.5 mt-1.5 flex-wrap">
-                        {u.roles?.map((r: any) => (
-                          <Badge
-                            key={r.id}
-                            variant={r.name === 'admin' ? 'default' : 'secondary'}
-                            className="gap-1"
-                          >
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User ID</TableHead>
+                    <TableHead>Papel</TableHead>
+                    <TableHead>Nível</TableHead>
+                    <TableHead>Atribuído em</TableHead>
+                    <TableHead className="w-[80px]">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {usersRoles.map((u: any) =>
+                    u.roles?.map((r: any, idx: number) => (
+                      <TableRow key={`${u.user_id}-${r.id || r.name}-${idx}`}>
+                        <TableCell className="font-mono text-xs" title={u.user_id}>
+                          {truncateUuid(u.user_id)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={r.name === 'admin' ? 'default' : 'secondary'}>
                             {r.label || r.name}
-                            <button
-                              className="ml-0.5 hover:text-destructive"
-                              onClick={() => removeMut.mutate({ userId: u.user_id, roleId: r.id })}
-                              title="Remover papel"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
                           </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {r.level ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDate(r.assigned_at)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => removeMut.mutate({ userId: u.user_id, roleId: r.id })}
+                            disabled={removeMut.isPending}
+                            title="Remover papel"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
           )}
         </TabsContent>
 
         {/* ===== ROLES TAB ===== */}
         <TabsContent value="roles" className="space-y-4">
-          {rolesLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
-            </div>
-          ) : roles.length === 0 ? (
+          {rolesLoading ? <TableSkeleton /> : roles.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <Key className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
@@ -188,61 +227,79 @@ export default function RbacPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {roles.map((role: any) => (
-                <Card
-                  key={role.id}
-                  className={`cursor-pointer transition-colors ${selectedRoleId === role.id ? 'ring-2 ring-primary' : ''}`}
-                  onClick={() => setSelectedRoleId(selectedRoleId === role.id ? null : role.id)}
-                >
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center justify-between">
-                      <span>{role.label || role.name}</span>
-                      <Badge variant="outline" className="font-mono text-[10px]">{role.name}</Badge>
+            <>
+              <Card>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Nível</TableHead>
+                      <TableHead>Permissões</TableHead>
+                      <TableHead>Usuários</TableHead>
+                      <TableHead>Criado em</TableHead>
+                      <TableHead className="w-[80px]">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {roles.map((role: any) => (
+                      <TableRow
+                        key={role.id}
+                        className={`cursor-pointer ${selectedRoleId === role.id ? 'bg-muted' : ''}`}
+                        onClick={() => setSelectedRoleId(selectedRoleId === role.id ? null : role.id)}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{role.label || role.name}</span>
+                            <Badge variant="outline" className="font-mono text-[10px]">{role.name}</Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">{role.level ?? '—'}</TableCell>
+                        <TableCell className="text-sm">{role.permission_count ?? 0}</TableCell>
+                        <TableCell className="text-sm">{role.user_count ?? 0}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDate(role.created_at)}
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Editar (em breve)">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+
+              {/* Selected role permissions */}
+              {selectedRoleId && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">
+                      Permissões do papel: {roles.find((r: any) => r.id === selectedRoleId)?.label || '—'}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-xs text-muted-foreground">{role.description || '—'}</p>
-                    {role.module_scope && (
-                      <Badge variant="secondary" className="mt-2 text-[10px]">{role.module_scope}</Badge>
-                    )}
+                  <CardContent>
+                    <div className="flex flex-wrap gap-1.5">
+                      {rolePerms.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nenhuma permissão atribuída</p>
+                      ) : (
+                        rolePerms.map((p: any, idx: number) => (
+                          <Badge key={p.key || p.permission_name || idx} variant="outline" className="text-xs font-mono">
+                            {p.key || p.permission_name || p.name}
+                          </Badge>
+                        ))
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          )}
-
-          {selectedRoleId && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">
-                  Permissões do papel: {roles.find((r: any) => r.id === selectedRoleId)?.label}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5">
-                  {rolePerms.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nenhuma permissão atribuída</p>
-                  ) : (
-                    rolePerms.map((p: any) => (
-                      <Badge key={p.key || p.id} variant="outline" className="text-xs font-mono">
-                        {p.key || p.name}
-                      </Badge>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+              )}
+            </>
           )}
         </TabsContent>
 
         {/* ===== PERMISSIONS TAB ===== */}
         <TabsContent value="permissions" className="space-y-4">
-          {permsLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
-            </div>
-          ) : Object.keys(moduleGroups).length === 0 ? (
+          {permsLoading ? <TableSkeleton /> : Object.keys(moduleGroups).length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <Lock className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
@@ -250,22 +307,41 @@ export default function RbacPage() {
               </CardContent>
             </Card>
           ) : (
-            Object.entries(moduleGroups).map(([mod, perms]) => (
-              <Card key={mod}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm capitalize">{mod}</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="flex flex-wrap gap-1.5">
-                    {(perms as any[]).map((p) => (
-                      <Badge key={p.key || p.id} variant="outline" className="text-xs font-mono" title={p.description}>
-                        {p.key || p.name}
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+            <Card>
+              <Accordion type="multiple" defaultValue={Object.keys(moduleGroups)} className="px-4">
+                {Object.entries(moduleGroups).map(([mod, perms]) => (
+                  <AccordionItem key={mod} value={mod}>
+                    <AccordionTrigger className="text-sm font-medium capitalize">
+                      {mod} <Badge variant="secondary" className="ml-2 text-[10px]">{(perms as any[]).length}</Badge>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nome</TableHead>
+                            <TableHead>Módulo</TableHead>
+                            <TableHead>Descrição</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(perms as any[]).map((p) => (
+                            <TableRow key={p.key || p.id}>
+                              <TableCell className="font-mono text-xs">{p.key || p.name}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-[10px]">{p.module}</Badge>
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {p.description || p.label || '—'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </Card>
           )}
         </TabsContent>
       </Tabs>
@@ -292,9 +368,9 @@ export default function RbacPage() {
               <Select value={assignRoleId} onValueChange={setAssignRoleId}>
                 <SelectTrigger><SelectValue placeholder="Selecionar papel" /></SelectTrigger>
                 <SelectContent>
-                  {roles.map((r: any) => (
+                  {assignRoles.map((r: any) => (
                     <SelectItem key={r.id} value={r.id}>
-                      {r.label || r.name} ({r.name})
+                      {r.label || r.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
