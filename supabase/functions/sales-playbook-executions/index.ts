@@ -36,14 +36,15 @@ serve(async (req) => {
         if (body.action === "pause") updates.status = "paused";
         else if (body.action === "resume") {
           updates.status = "active";
-          // Recalculate next_execution_at
-          const { data: exec } = await db.from("sales_playbook_executions").select("playbook_id, current_step").eq("id", body.id).single();
+          const { data: exec } = await db.from("sales_playbook_executions")
+            .select("playbook_id, current_step").eq("id", body.id).single();
           if (exec) {
             const { data: step } = await db.from("sales_playbook_steps")
-              .select("delay_days").eq("playbook_id", exec.playbook_id).eq("step_order", exec.current_step).single();
+              .select("delay_days, delay_hours")
+              .eq("playbook_id", exec.playbook_id).eq("step_order", exec.current_step).single();
             if (step) {
               const next = new Date();
-              next.setDate(next.getDate() + (step.delay_days || 0));
+              next.setTime(next.getTime() + ((step.delay_days || 0) * 24 + (step.delay_hours || 0)) * 3600000);
               updates.next_execution_at = next.toISOString();
             }
           }
@@ -53,38 +54,72 @@ serve(async (req) => {
         }
 
         if (!auth.isAdmin && !auth.isManager) {
-          const { data: ex } = await db.from("sales_playbook_executions").select("owner_user_id").eq("id", body.id).single();
+          const { data: ex } = await db.from("sales_playbook_executions")
+            .select("owner_user_id").eq("id", body.id).single();
           if (ex?.owner_user_id !== auth.userId) return errorResponse(403, "Not your execution");
         }
 
-        const { data, error } = await db.from("sales_playbook_executions").update(updates).eq("id", body.id).select().single();
+        const { data, error } = await db.from("sales_playbook_executions")
+          .update(updates).eq("id", body.id).select().single();
         if (error) return errorResponse(400, error.message);
         return jsonResponse(data);
       }
 
-      // Start new execution
+      // Start new execution — opportunity_id required
       if (!body.playbook_id) return errorResponse(400, "playbook_id required");
+      if (!body.opportunity_id) return errorResponse(400, "opportunity_id required");
 
-      // Get first step to set next_execution_at
-      const { data: firstStep } = await db.from("sales_playbook_steps")
-        .select("delay_days").eq("playbook_id", body.playbook_id).order("step_order", { ascending: true }).limit(1).single();
+      // Inherit owner from opportunity
+      const { data: opp } = await db.from("sales_opportunities")
+        .select("owner_user_id, account_id")
+        .eq("id", body.opportunity_id).single();
+      if (!opp) return errorResponse(404, "Opportunity not found");
 
-      const nextExec = new Date();
-      if (firstStep) nextExec.setDate(nextExec.getDate() + (firstStep.delay_days || 0));
+      const ownerUserId = opp.owner_user_id || auth.userId;
+
+      // Get first step and snapshot templates
+      const { data: steps } = await db.from("sales_playbook_steps")
+        .select("*, template:sales_templates(subject, body)")
+        .eq("playbook_id", body.playbook_id)
+        .order("step_order", { ascending: true });
+
+      // Snapshot templates into steps
+      if (steps && steps.length > 0) {
+        for (const step of steps) {
+          if (step.template && (!step.snapshot_subject || !step.snapshot_body)) {
+            await db.from("sales_playbook_steps").update({
+              snapshot_subject: step.template.subject || step.subject,
+              snapshot_body: step.template.body || step.description,
+            }).eq("id", step.id);
+          }
+        }
+      }
+
+      const firstStep = steps?.[0];
+      const delayMs = firstStep
+        ? ((firstStep.delay_days || 0) * 24 + (firstStep.delay_hours || 0)) * 3600000
+        : 0;
+      const nextExec = new Date(Date.now() + delayMs);
 
       const record = {
         playbook_id: body.playbook_id,
-        opportunity_id: body.opportunity_id || null,
-        account_id: body.account_id || null,
+        opportunity_id: body.opportunity_id,
+        account_id: body.account_id || opp.account_id || null,
         contact_id: body.contact_id || null,
-        owner_user_id: body.owner_user_id || auth.userId,
+        owner_user_id: ownerUserId,
         current_step: 1,
         status: "active",
+        priority: body.priority || 1,
         next_execution_at: nextExec.toISOString(),
       };
 
-      const { data, error } = await db.from("sales_playbook_executions").insert(record).select().single();
-      if (error) return errorResponse(400, error.message);
+      const { data, error } = await db.from("sales_playbook_executions")
+        .insert(record).select().single();
+      if (error) {
+        // Unique violation = duplicate active playbook
+        if (error.code === "23505") return errorResponse(409, "DUPLICATE_ACTIVE_PLAYBOOK");
+        return errorResponse(400, error.message);
+      }
       return jsonResponse(data, 201);
     }
 
