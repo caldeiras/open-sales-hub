@@ -16,7 +16,7 @@ serve(async (req) => {
     // 1. Fetch scored opportunities with stage info
     const { data: opps } = await db
       .from("sales_opportunities")
-      .select("id, owner_user_id, stage_id, amount, mrr, monthly_value, priority_score, updated_at, status, proposal_id")
+      .select("id, owner_user_id, pipeline_stage_id, amount, mrr, monthly_value, priority_score, updated_at, status, proposal_id")
       .in("status", ["open", "negotiation", "proposal"])
       .order("priority_score", { ascending: false })
       .limit(500);
