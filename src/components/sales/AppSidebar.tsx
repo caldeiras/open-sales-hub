@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, Building2, Contact, Target, Kanban,
   CalendarCheck, FileText, TrendingUp, DollarSign, BarChart3, Settings,
-  LogOut,
+  LogOut, UsersRound, Map, Briefcase,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useSalesAuth } from '@/contexts/SalesAuthContext';
@@ -27,6 +27,12 @@ const resultItems = [
   { title: 'Metas', url: '/goals', icon: TrendingUp },
   { title: 'Comissão', url: '/commissions', icon: DollarSign },
   { title: 'Relatórios', url: '/reports', icon: BarChart3 },
+];
+
+const structureItems = [
+  { title: 'Times', url: '/teams', icon: UsersRound },
+  { title: 'Territórios', url: '/territories', icon: Map },
+  { title: 'Carteira', url: '/portfolio', icon: Briefcase },
 ];
 
 const adminItems = [
@@ -94,6 +100,26 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {showAdmin && (
+          <SidebarGroup>
+            {!collapsed && <SidebarGroupLabel className="text-sidebar-muted text-[10px] uppercase tracking-widest">Estrutura</SidebarGroupLabel>}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {structureItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink to={item.url} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                        <item.icon className="h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {showAdmin && (
           <SidebarGroup>

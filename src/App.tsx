@@ -22,6 +22,9 @@ import GoalsPage from "./pages/sales/GoalsPage";
 import CommissionsPage from "./pages/sales/CommissionsPage";
 import ReportsPage from "./pages/sales/ReportsPage";
 import SettingsPage from "./pages/sales/SettingsPage";
+import TeamsPage from "./pages/sales/TeamsPage";
+import TerritoriesPage from "./pages/sales/TerritoriesPage";
+import PortfolioPage from "./pages/sales/PortfolioPage";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +50,9 @@ const App = () => (
                 <Route path="/goals" element={<GoalsPage />} />
                 <Route path="/commissions" element={<CommissionsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/teams" element={<TeamsPage />} />
+                <Route path="/territories" element={<TerritoriesPage />} />
+                <Route path="/portfolio" element={<PortfolioPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

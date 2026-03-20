@@ -218,6 +218,75 @@ export function useGoalPerformance(periodMonth?: string) {
   return useQuery({ queryKey: ['goal-performance', periodMonth], queryFn: () => salesService.fetchGoalPerformance(periodMonth) });
 }
 
+// ===== Phase 7: Commercial Structure =====
+export function useTeams() {
+  return useQuery({ queryKey: ['teams'], queryFn: salesService.fetchTeams });
+}
+
+export function useUpsertTeam() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.upsertTeam,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['teams'] }); qc.invalidateQueries({ queryKey: ['team-summary'] }); },
+  });
+}
+
+export function useTeamMembers(teamId?: string) {
+  return useQuery({ queryKey: ['team-members', teamId], queryFn: () => salesService.fetchTeamMembers(teamId) });
+}
+
+export function useManageTeamMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.manageTeamMember,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['team-members'] }); qc.invalidateQueries({ queryKey: ['team-summary'] }); },
+  });
+}
+
+export function useTerritories() {
+  return useQuery({ queryKey: ['territories'], queryFn: salesService.fetchTerritories });
+}
+
+export function useUpsertTerritory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.upsertTerritory,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['territories'] }); },
+  });
+}
+
+export function useTerritoryAssignments(territoryId?: string) {
+  return useQuery({ queryKey: ['territory-assignments', territoryId], queryFn: () => salesService.fetchTerritoryAssignments(territoryId) });
+}
+
+export function useAssignTerritory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.assignTerritory,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['territory-assignments'] }); },
+  });
+}
+
+export function useAccountOwnerships(filters?: Record<string, string>) {
+  return useQuery({ queryKey: ['account-ownerships', filters], queryFn: () => salesService.fetchAccountOwnerships(filters) });
+}
+
+export function useTransferAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.transferAccount,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['account-ownerships'] });
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['team-summary'] });
+    },
+  });
+}
+
+export function useTeamSummary(teamId?: string) {
+  return useQuery({ queryKey: ['team-summary', teamId], queryFn: () => salesService.fetchTeamSummary(teamId) });
+}
+
 // ===== Stubs =====
 export function useLeads(filters?: Record<string, any>) {
   return useQuery({ queryKey: ['leads', filters], queryFn: () => salesService.fetchLeads(filters) });
