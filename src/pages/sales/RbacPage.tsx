@@ -26,7 +26,7 @@ export default function RbacPage() {
   const [search, setSearch] = useState('');
   const [assignDialog, setAssignDialog] = useState(false);
   const [assignUserId, setAssignUserId] = useState('');
-  const [assignRoleName, setAssignRoleName] = useState('');
+  const [assignRoleId, setAssignRoleId] = useState('');
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
 
   const { data: roles = [], isLoading: rolesLoading } = useQuery({
@@ -51,24 +51,28 @@ export default function RbacPage() {
   });
 
   const assignMut = useMutation({
-    mutationFn: ({ userId, role }: { userId: string; role: string }) => assignRole(userId, role),
+    mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
+      assignRole(userId, roleId),
     onSuccess: () => {
       toast({ title: 'Papel atribuído com sucesso' });
       qc.invalidateQueries({ queryKey: ['rbac-users-roles'] });
       setAssignDialog(false);
       setAssignUserId('');
-      setAssignRoleName('');
+      setAssignRoleId('');
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: any) =>
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const removeMut = useMutation({
-    mutationFn: ({ userId, role }: { userId: string; role: string }) => removeRole(userId, role),
+    mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
+      removeRole(userId, roleId),
     onSuccess: () => {
       toast({ title: 'Papel removido' });
       qc.invalidateQueries({ queryKey: ['rbac-users-roles'] });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+    onError: (err: any) =>
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
   const filteredUsers = usersRoles.filter((u: any) =>
@@ -147,14 +151,14 @@ export default function RbacPage() {
                       <div className="flex gap-1.5 mt-1.5 flex-wrap">
                         {u.roles?.map((r: any) => (
                           <Badge
-                            key={r.name}
+                            key={r.id}
                             variant={r.name === 'admin' ? 'default' : 'secondary'}
                             className="gap-1"
                           >
                             {r.label || r.name}
                             <button
                               className="ml-0.5 hover:text-destructive"
-                              onClick={() => removeMut.mutate({ userId: u.user_id, role: r.name })}
+                              onClick={() => removeMut.mutate({ userId: u.user_id, roleId: r.id })}
                               title="Remover papel"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -176,6 +180,13 @@ export default function RbacPage() {
             <div className="space-y-3">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
             </div>
+          ) : roles.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Key className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">Nenhum papel cadastrado</p>
+              </CardContent>
+            </Card>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {roles.map((role: any) => (
@@ -186,7 +197,7 @@ export default function RbacPage() {
                 >
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center justify-between">
-                      <span>{role.label}</span>
+                      <span>{role.label || role.name}</span>
                       <Badge variant="outline" className="font-mono text-[10px]">{role.name}</Badge>
                     </CardTitle>
                   </CardHeader>
@@ -214,8 +225,8 @@ export default function RbacPage() {
                     <p className="text-sm text-muted-foreground">Nenhuma permissão atribuída</p>
                   ) : (
                     rolePerms.map((p: any) => (
-                      <Badge key={p.key} variant="outline" className="text-xs font-mono">
-                        {p.key}
+                      <Badge key={p.key || p.id} variant="outline" className="text-xs font-mono">
+                        {p.key || p.name}
                       </Badge>
                     ))
                   )}
@@ -231,6 +242,13 @@ export default function RbacPage() {
             <div className="space-y-3">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
             </div>
+          ) : Object.keys(moduleGroups).length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Lock className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">Nenhuma permissão cadastrada</p>
+              </CardContent>
+            </Card>
           ) : (
             Object.entries(moduleGroups).map(([mod, perms]) => (
               <Card key={mod}>
@@ -240,8 +258,8 @@ export default function RbacPage() {
                 <CardContent className="pt-0">
                   <div className="flex flex-wrap gap-1.5">
                     {(perms as any[]).map((p) => (
-                      <Badge key={p.key} variant="outline" className="text-xs font-mono" title={p.description}>
-                        {p.key}
+                      <Badge key={p.key || p.id} variant="outline" className="text-xs font-mono" title={p.description}>
+                        {p.key || p.name}
                       </Badge>
                     ))}
                   </div>
@@ -271,12 +289,12 @@ export default function RbacPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Papel</Label>
-              <Select value={assignRoleName} onValueChange={setAssignRoleName}>
+              <Select value={assignRoleId} onValueChange={setAssignRoleId}>
                 <SelectTrigger><SelectValue placeholder="Selecionar papel" /></SelectTrigger>
                 <SelectContent>
                   {roles.map((r: any) => (
-                    <SelectItem key={r.name} value={r.name}>
-                      {r.label} ({r.name})
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.label || r.name} ({r.name})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -286,8 +304,8 @@ export default function RbacPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAssignDialog(false)}>Cancelar</Button>
             <Button
-              onClick={() => assignMut.mutate({ userId: assignUserId, role: assignRoleName })}
-              disabled={!assignUserId || !assignRoleName || assignMut.isPending}
+              onClick={() => assignMut.mutate({ userId: assignUserId, roleId: assignRoleId })}
+              disabled={!assignUserId || !assignRoleId || assignMut.isPending}
             >
               {assignMut.isPending ? 'Atribuindo...' : 'Atribuir'}
             </Button>
