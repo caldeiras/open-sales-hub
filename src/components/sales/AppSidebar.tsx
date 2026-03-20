@@ -23,6 +23,12 @@ const executionItems = [
   { title: 'Propostas', url: '/proposals', icon: FileText },
 ];
 
+const cadenceItems = [
+  { title: 'Playbooks', url: '/playbooks', icon: BookOpen },
+  { title: 'Templates', url: '/templates', icon: MessageSquare },
+  { title: 'Alertas', url: '/alerts', icon: Bell },
+];
+
 const resultItems = [
   { title: 'Metas', url: '/goals', icon: TrendingUp },
   { title: 'Comissão', url: '/commissions', icon: DollarSign },

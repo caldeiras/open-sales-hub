@@ -14,8 +14,8 @@ export default function AlertsPage() {
 
   const typeIcons: Record<string, any> = {
     sla_violation: <AlertTriangle className="h-4 w-4 text-destructive" />,
-    sla_escalation: <AlertTriangle className="h-4 w-4 text-orange-500" />,
-    opp_stale: <Clock className="h-4 w-4 text-yellow-500" />,
+    sla_escalation: <AlertTriangle className="h-4 w-4 text-warning" />,
+    opp_stale: <Clock className="h-4 w-4 text-muted-foreground" />,
   };
 
   const typeLabels: Record<string, string> = {
