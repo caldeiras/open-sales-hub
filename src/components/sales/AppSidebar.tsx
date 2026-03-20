@@ -29,6 +29,12 @@ const resultItems = [
   { title: 'Relatórios', url: '/reports', icon: BarChart3 },
 ];
 
+const structureItems = [
+  { title: 'Times', url: '/teams', icon: UsersRound },
+  { title: 'Territórios', url: '/territories', icon: Map },
+  { title: 'Carteira', url: '/portfolio', icon: Briefcase },
+];
+
 const adminItems = [
   { title: 'Configurações', url: '/settings', icon: Settings },
 ];
