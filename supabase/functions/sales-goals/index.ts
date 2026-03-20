@@ -18,7 +18,7 @@ serve(async (req) => {
       const ownerId = url.searchParams.get("owner_user_id");
 
       let query = db.from("sales_goals").select("*");
-      query = applyOwnershipFilter(query, auth);
+      query = await applyOwnershipFilter(query, auth);
 
       if (periodMonth) query = query.eq("period_month", periodMonth);
       if (metric) query = query.eq("metric", metric);

@@ -42,7 +42,7 @@ serve(async (req) => {
     let wonQuery = db.from("sales_opportunities")
       .select("id, mrr, arr, tcv, owner_user_id, account_id, is_expansion, is_renewal")
       .eq("status", "won");
-    wonQuery = applyOwnershipFilter(wonQuery, auth);
+    wonQuery = await applyOwnershipFilter(wonQuery, auth);
     const { data: wonOpps = [] } = await wonQuery;
 
     const now = new Date();

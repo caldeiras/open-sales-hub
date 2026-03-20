@@ -17,7 +17,7 @@ serve(async (req) => {
     let oppQuery = db.from("sales_opportunities").select(
       "id, status, amount, monthly_value, probability_percent, weighted_amount, pipeline_stage_id, owner_user_id, expected_close_month, close_date"
     );
-    oppQuery = applyOwnershipFilter(oppQuery, auth);
+    oppQuery = await applyOwnershipFilter(oppQuery, auth);
     const { data: opportunities = [], error: oppErr } = await oppQuery;
     if (oppErr) return errorResponse(400, oppErr.message);
 

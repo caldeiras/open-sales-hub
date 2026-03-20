@@ -18,7 +18,7 @@ serve(async (req) => {
         opportunity:sales_opportunities(id, title),
         contact:sales_contacts(id, full_name)
       `);
-      query = applyOwnershipFilter(query, auth);
+      query = await applyOwnershipFilter(query, auth);
 
       const status = url.searchParams.get("status");
       const accountId = url.searchParams.get("account_id");
@@ -53,7 +53,6 @@ serve(async (req) => {
           const { data: existing } = await db.from("sales_activities").select("owner_user_id").eq("id", body.id).single();
           if (existing?.owner_user_id !== auth.userId) return errorResponse(403, "Not your record");
         }
-        // Don't overwrite created_by on update
         const { created_by_user_id, ...updateRecord } = record;
         const { data, error } = await db.from("sales_activities").update(updateRecord).eq("id", body.id).select().single();
         if (error) return errorResponse(400, error.message);

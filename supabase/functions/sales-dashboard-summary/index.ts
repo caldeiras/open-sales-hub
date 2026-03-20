@@ -15,13 +15,13 @@ serve(async (req) => {
 
     // Fetch opportunities with ownership filter
     let oppQuery = db.from("sales_opportunities").select("id, status, amount, monthly_value, pipeline_stage_id, owner_user_id, close_date");
-    oppQuery = applyOwnershipFilter(oppQuery, auth);
+    oppQuery = await applyOwnershipFilter(oppQuery, auth);
     const { data: opportunities = [], error: oppErr } = await oppQuery;
     if (oppErr) return errorResponse(400, oppErr.message);
 
     // Fetch activities with ownership filter
     let actQuery = db.from("sales_activities").select("id, status, due_at, owner_user_id, opportunity_id");
-    actQuery = applyOwnershipFilter(actQuery, auth);
+    actQuery = await applyOwnershipFilter(actQuery, auth);
     const { data: activities = [], error: actErr } = await actQuery;
     if (actErr) return errorResponse(400, actErr.message);
 

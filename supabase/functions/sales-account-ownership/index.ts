@@ -5,10 +5,7 @@ import {
 } from "../_shared/sales-auth.ts";
 
 /**
- * Account ownership: list, assign, transfer.
- * GET: list account ownerships (filtered by role)
- * POST action=assign: assign owner to account
- * POST action=transfer: transfer account to new owner (preserves history)
+ * Account ownership: list, assign, transfer with strong audit.
  */
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -24,7 +21,6 @@ serve(async (req) => {
       let query = db.from("sales_account_ownership").select("*");
       if (accountId) query = query.eq("account_id", accountId);
 
-      // Ownership filter
       if (!auth.isAdmin && !auth.isManager) {
         query = query.eq("owner_user_id", auth.userId);
       }
@@ -42,13 +38,16 @@ serve(async (req) => {
       const { action } = body;
 
       if (action === "transfer") {
-        // Transfer: only admin/manager or current owner
         const { account_id, new_owner_user_id, team_id, reason } = body;
         if (!account_id || !new_owner_user_id) {
           return errorResponse(400, "account_id and new_owner_user_id required");
         }
 
-        // Check current ownership
+        // HARDENING: transfer_reason is mandatory
+        if (!reason || !reason.trim()) {
+          return errorResponse(400, "transfer_reason is required for transfers");
+        }
+
         const { data: current } = await db.from("sales_account_ownership")
           .select("*").eq("account_id", account_id).eq("active", true).maybeSingle();
 
@@ -56,13 +55,18 @@ serve(async (req) => {
           return errorResponse(403, "Not authorized to transfer this account");
         }
 
-        // Insert new ownership (trigger deactivates old)
+        // Cannot transfer to self
+        if (current && current.owner_user_id === new_owner_user_id) {
+          return errorResponse(400, "Cannot transfer account to current owner");
+        }
+
         const record = {
           account_id,
           owner_user_id: new_owner_user_id,
           team_id: team_id || null,
           transferred_from: current?.owner_user_id || null,
-          transfer_reason: reason || null,
+          transfer_reason: reason.trim(),
+          transferred_at: new Date().toISOString(),
           active: true,
         };
 
@@ -70,7 +74,7 @@ serve(async (req) => {
           .insert(record).select().single();
         if (error) return errorResponse(400, error.message);
 
-        // Also update owner_user_id on the account itself
+        // Sync owner_user_id on account
         await db.from("sales_accounts")
           .update({ owner_user_id: new_owner_user_id })
           .eq("id", account_id);
@@ -78,7 +82,7 @@ serve(async (req) => {
         return jsonResponse(data, 201);
       }
 
-      // Default: assign (initial ownership)
+      // Assign (initial ownership)
       if (!auth.isAdmin && !auth.isManager) {
         return errorResponse(403, "Only admin/manager can assign ownership");
       }
@@ -99,7 +103,6 @@ serve(async (req) => {
         .insert(record).select().single();
       if (error) return errorResponse(400, error.message);
 
-      // Sync owner on account
       await db.from("sales_accounts")
         .update({ owner_user_id }).eq("id", account_id);
 

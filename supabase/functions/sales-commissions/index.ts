@@ -17,7 +17,7 @@ serve(async (req) => {
       const source = url.searchParams.get("source");
 
       let query = db.from("sales_commissions").select("*");
-      query = applyOwnershipFilter(query, auth);
+      query = await applyOwnershipFilter(query, auth);
 
       if (periodMonth) query = query.eq("commission_period_month", periodMonth);
       if (source) query = query.eq("source", source);
