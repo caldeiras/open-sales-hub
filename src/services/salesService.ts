@@ -1,4 +1,3 @@
-import { supabase } from '@/integrations/supabase/client';
 import { getIdentityClient } from '@/lib/identityClient';
 
 /**
@@ -15,27 +14,8 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${session.access_token}` };
 }
 
-async function invokeFunction(name: string, options?: { body?: any; method?: string; params?: Record<string, string> }) {
-  const headers = await getAuthHeaders();
-  
-  // For GET requests with params, we pass them in the body since supabase.functions.invoke uses POST
-  // The Edge Function reads URL params for GET, so we simulate by sending method info
-  const { data, error } = await supabase.functions.invoke(name, {
-    body: { ...options?.body, _method: options?.method || 'GET', _params: options?.params },
-    headers,
-  });
-
-  if (error) throw new Error(error.message || `${name} error`);
-  if (data?.error) throw new Error(data.error);
-  return data;
-}
-
-// We need to adjust: supabase.functions.invoke always sends POST.
-// Our Edge Functions use req.method. Let's use a wrapper that handles this.
 async function salesGet(functionName: string, params?: Record<string, string>) {
   const headers = await getAuthHeaders();
-  
-  // Build URL with query params for GET
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   const baseUrl = `https://${projectId}.supabase.co/functions/v1/${functionName}`;
   const url = new URL(baseUrl);
@@ -61,7 +41,6 @@ async function salesGet(functionName: string, params?: Record<string, string>) {
 
 async function salesPost(functionName: string, body: any) {
   const headers = await getAuthHeaders();
-
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   const baseUrl = `https://${projectId}.supabase.co/functions/v1/${functionName}`;
 
@@ -80,14 +59,14 @@ async function salesPost(functionName: string, body: any) {
   return data;
 }
 
-// ===== Pipeline Stages (config — read via generic proxy) =====
+// ===== Pipeline Stages (via commercial proxy POST) =====
 export async function fetchPipelineStages() {
-  return salesGet('sales-commercial-proxy', undefined).catch(() => {
-    // Fallback: use dedicated proxy body
-    return invokeFunction('sales-commercial-proxy', {
-      body: { table: 'sales_pipeline_stages', operation: 'select', select: '*', order: { column: 'stage_order', ascending: true } },
-    });
-  });
+  return salesPost('sales-commercial-proxy', {
+    table: 'sales_pipeline_stages',
+    operation: 'select',
+    select: '*',
+    order: { column: 'stage_order', ascending: true },
+  }).then(res => res.data || res);
 }
 
 // ===== Accounts =====
@@ -136,11 +115,11 @@ export async function upsertActivity(data: any) {
   return salesPost('sales-activities', data);
 }
 
-// ===== Config tables (via commercial proxy) =====
+// ===== Config tables (via commercial proxy POST) =====
 async function fetchConfigTable(table: string, orderColumn: string) {
-  return invokeFunction('sales-commercial-proxy', {
-    body: { table, operation: 'select', select: '*', order: { column: orderColumn, ascending: true } },
-  });
+  return salesPost('sales-commercial-proxy', {
+    table, operation: 'select', select: '*', order: { column: orderColumn, ascending: true },
+  }).then(res => res.data || res);
 }
 
 export async function fetchLeadSources() {

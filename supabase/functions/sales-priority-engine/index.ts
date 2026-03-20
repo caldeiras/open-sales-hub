@@ -15,7 +15,7 @@ serve(async (req) => {
     // 1. Fetch all open opportunities with stage info
     const { data: opps, error: oppErr } = await db
       .from("sales_opportunities")
-      .select("id, owner_user_id, stage_id, amount, monthly_value, mrr, updated_at, created_at")
+      .select("id, owner_user_id, pipeline_stage_id, amount, monthly_value, mrr, updated_at, created_at")
       .in("status", ["open", "negotiation", "proposal"])
       .limit(1000);
 
@@ -53,7 +53,7 @@ serve(async (req) => {
     const scores: any[] = [];
 
     for (const opp of opps) {
-      const stageWeight = stageMap[opp.stage_id] || 0;
+      const stageWeight = stageMap[opp.pipeline_stage_id] || 0;
       const value = opp.mrr || opp.monthly_value || opp.amount || 0;
       const valueWeight = Math.min(Math.round(Math.log10(Math.max(value, 1)) * 8), 30); // max 30 pts
       const daysSinceUpdate = Math.floor((now.getTime() - new Date(opp.updated_at).getTime()) / 86400000);
