@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, Building2, Contact, Target, Kanban,
   CalendarCheck, FileText, TrendingUp, DollarSign, BarChart3, Settings,
-  LogOut, UsersRound, Map, Briefcase,
+  LogOut, UsersRound, Map, Briefcase, BookOpen, MessageSquare, Bell,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useSalesAuth } from '@/contexts/SalesAuthContext';
@@ -21,6 +21,12 @@ const executionItems = [
   { title: 'Pipeline', url: '/pipeline', icon: Kanban },
   { title: 'Atividades', url: '/activities', icon: CalendarCheck },
   { title: 'Propostas', url: '/proposals', icon: FileText },
+];
+
+const cadenceItems = [
+  { title: 'Playbooks', url: '/playbooks', icon: BookOpen },
+  { title: 'Templates', url: '/templates', icon: MessageSquare },
+  { title: 'Alertas', url: '/alerts', icon: Bell },
 ];
 
 const resultItems = [
@@ -73,6 +79,24 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end={item.url === '/'} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                      <item.icon className="h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          {!collapsed && <SidebarGroupLabel className="text-sidebar-muted text-[10px] uppercase tracking-widest">Cadência</SidebarGroupLabel>}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {cadenceItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
                       <item.icon className="h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>

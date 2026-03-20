@@ -25,6 +25,9 @@ import SettingsPage from "./pages/sales/SettingsPage";
 import TeamsPage from "./pages/sales/TeamsPage";
 import TerritoriesPage from "./pages/sales/TerritoriesPage";
 import PortfolioPage from "./pages/sales/PortfolioPage";
+import PlaybooksPage from "./pages/sales/PlaybooksPage";
+import TemplatesPage from "./pages/sales/TemplatesPage";
+import AlertsPage from "./pages/sales/AlertsPage";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +56,9 @@ const App = () => (
                 <Route path="/teams" element={<TeamsPage />} />
                 <Route path="/territories" element={<TerritoriesPage />} />
                 <Route path="/portfolio" element={<PortfolioPage />} />
+                <Route path="/playbooks" element={<PlaybooksPage />} />
+                <Route path="/templates" element={<TemplatesPage />} />
+                <Route path="/alerts" element={<AlertsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
