@@ -9,6 +9,7 @@ export interface AuthContext {
   userId: string;
   email: string;
   roles: string[];
+  permissions: string[];
   isAdmin: boolean;
   isManager: boolean;
   isCommercial: boolean;
@@ -31,84 +32,67 @@ function decodeJwtPayload(token: string): Record<string, any> {
 }
 
 /**
- * Extract roles from multiple sources (no service_role needed):
- * 1. app_metadata.roles (array) or app_metadata.role (string)
- * 2. JWT custom claims (user_roles, roles)
- * 3. DB query using user's own JWT context
+ * Returns a Supabase client for the local Lovable Cloud project (RBAC tables).
  */
-async function resolveRoles(
-  identityClient: any,
-  user: any,
-  jwtPayload: Record<string, any>
-): Promise<string[]> {
-  // Source 1: app_metadata
-  const meta = user.app_metadata || {};
-  if (Array.isArray(meta.roles) && meta.roles.length > 0) {
-    console.log("[sales-auth] Roles from app_metadata.roles:", meta.roles);
-    return meta.roles;
-  }
-  if (typeof meta.role === "string" && meta.role) {
-    console.log("[sales-auth] Role from app_metadata.role:", meta.role);
-    return [meta.role];
-  }
-
-  // Source 2: JWT custom claims
-  const claimRoles = jwtPayload.user_roles || jwtPayload.roles;
-  if (Array.isArray(claimRoles) && claimRoles.length > 0) {
-    console.log("[sales-auth] Roles from JWT claims:", claimRoles);
-    return claimRoles;
-  }
-  if (typeof claimRoles === "string" && claimRoles) {
-    return [claimRoles];
-  }
-
-  // Source 3: DB query with user's own JWT (respects RLS)
-  console.log("[sales-auth] Falling back to DB role lookup with user JWT");
-  try {
-    let profileId: string | null = null;
-
-    const { data: profileById } = await identityClient
-      .from("profiles")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileById) {
-      profileId = profileById.id;
-    } else {
-      const { data: profileByEmail } = await identityClient
-        .from("profiles")
-        .select("id")
-        .eq("email", user.email)
-        .maybeSingle();
-      profileId = profileByEmail?.id || null;
-    }
-
-    console.log("[sales-auth] Profile lookup:", profileId);
-
-    if (profileId) {
-      const { data: userRoles, error: rolesError } = await identityClient
-        .from("user_roles")
-        .select("role:roles(slug)")
-        .eq("user_id", profileId);
-
-      if (rolesError) {
-        console.error("[sales-auth] Roles query error:", rolesError.message);
-      } else {
-        const slugs = (userRoles || []).map((ur: any) => ur.role?.slug).filter(Boolean);
-        console.log("[sales-auth] Roles from DB:", slugs);
-        return slugs;
-      }
-    }
-  } catch (err: any) {
-    console.error("[sales-auth] DB role lookup failed:", err?.message || err);
-  }
-
-  return [];
+function getLocalClient() {
+  return createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  );
 }
 
 /**
- * Validates the Identity JWT and resolves roles without privileged keys.
+ * Resolve roles from multiple sources:
+ * 1. Local RBAC tables (canonical source)
+ * 2. app_metadata.roles (fallback)
+ * 3. JWT custom claims (fallback)
+ */
+async function resolveRoles(
+  user: any,
+  jwtPayload: Record<string, any>
+): Promise<{ roles: string[]; permissions: string[] }> {
+  // Source 1: Local RBAC tables (canonical)
+  try {
+    const localDb = getLocalClient();
+    const { data: localRoles, error: rolesErr } = await localDb.rpc("rbac_get_user_roles", { p_user_id: user.id });
+
+    if (!rolesErr && Array.isArray(localRoles) && localRoles.length > 0) {
+      console.log("[sales-auth] Roles from local RBAC:", localRoles);
+      const { data: localPerms } = await localDb.rpc("rbac_get_user_permissions", { p_user_id: user.id });
+      return { roles: localRoles, permissions: Array.isArray(localPerms) ? localPerms : [] };
+    }
+    console.log("[sales-auth] No local RBAC roles found, checking fallbacks");
+  } catch (err: any) {
+    console.warn("[sales-auth] Local RBAC lookup failed:", err?.message);
+  }
+
+  // Source 2: app_metadata
+  const meta = user.app_metadata || {};
+  if (Array.isArray(meta.roles) && meta.roles.length > 0) {
+    console.log("[sales-auth] Roles from app_metadata.roles:", meta.roles);
+    return { roles: meta.roles, permissions: [] };
+  }
+  if (typeof meta.role === "string" && meta.role) {
+    console.log("[sales-auth] Role from app_metadata.role:", meta.role);
+    return { roles: [meta.role], permissions: [] };
+  }
+
+  // Source 3: JWT custom claims
+  const claimRoles = jwtPayload.user_roles || jwtPayload.roles;
+  if (Array.isArray(claimRoles) && claimRoles.length > 0) {
+    console.log("[sales-auth] Roles from JWT claims:", claimRoles);
+    return { roles: claimRoles, permissions: [] };
+  }
+  if (typeof claimRoles === "string" && claimRoles) {
+    return { roles: [claimRoles], permissions: [] };
+  }
+
+  return { roles: [], permissions: [] };
+}
+
+/**
+ * Validates the Identity JWT and resolves roles from local RBAC.
  */
 export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
   const authHeader = req.headers.get("Authorization");
@@ -135,8 +119,8 @@ export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
   const jwtPayload = decodeJwtPayload(token);
   console.log("[sales-auth] User authenticated:", user.id, user.email);
 
-  const roles = await resolveRoles(identityClient, user, jwtPayload);
-  console.log("[sales-auth] Final resolved roles:", roles);
+  const { roles, permissions } = await resolveRoles(user, jwtPayload);
+  console.log("[sales-auth] Final resolved roles:", roles, "permissions:", permissions.length);
 
   const isAdmin = roles.includes("admin");
   const isManager = roles.includes("gerente_comercial");
@@ -150,7 +134,7 @@ export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
     };
   }
 
-  return { userId: user.id, email: user.email!, roles, isAdmin, isManager, isCommercial };
+  return { userId: user.id, email: user.email!, roles, permissions, isAdmin, isManager, isCommercial };
 }
 
 /**
@@ -165,10 +149,47 @@ export function getCommercialClient() {
 }
 
 /**
+ * Check if user has a specific permission via local RBAC.
+ */
+export async function checkPermission(userId: string, permission: string): Promise<boolean> {
+  try {
+    const localDb = getLocalClient();
+    const { data } = await localDb.rpc("rbac_user_has_permission", {
+      p_user_id: userId,
+      p_permission: permission,
+    });
+    return !!data;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Log an audit event.
+ */
+export async function logAudit(
+  userId: string,
+  entityType: string,
+  action: string,
+  opts?: { entityId?: string; description?: string; meta?: Record<string, any> }
+) {
+  try {
+    const localDb = getLocalClient();
+    await localDb.from("audit_logs").insert({
+      user_id: userId,
+      entity_type: entityType,
+      entity_id: opts?.entityId || null,
+      action,
+      description: opts?.description || null,
+      meta: opts?.meta || {},
+    });
+  } catch (err: any) {
+    console.error("[sales-auth] Audit log failed:", err?.message);
+  }
+}
+
+/**
  * Applies ownership filter with team-based visibility for managers.
- * - admin: sees all
- * - gerente_comercial: sees own records + team members' records
- * - comercial: sees only own records
  */
 export async function applyOwnershipFilter(
   query: any,
@@ -178,7 +199,6 @@ export async function applyOwnershipFilter(
   if (auth.isAdmin) return query;
 
   if (auth.isManager) {
-    // Get team member user IDs managed by this manager
     const db = getCommercialClient();
     const { data: teams = [] } = await db.from("sales_teams")
       .select("id").eq("manager_user_id", auth.userId).eq("active", true);
@@ -192,7 +212,6 @@ export async function applyOwnershipFilter(
       const uniqueIds = [...new Set(visibleIds)];
       return query.in(ownerColumn, uniqueIds);
     }
-    // Manager with no teams: see own only
     return query.eq(ownerColumn, auth.userId);
   }
 
@@ -200,9 +219,7 @@ export async function applyOwnershipFilter(
 }
 
 /**
- * Check if user has territory access for a given account/segment.
- * Returns true if admin/manager or if user is assigned to a territory.
- * For comercial users, validates against sales_territory_assignments.
+ * Check if user has territory access.
  */
 export async function validateTerritoryAccess(
   auth: AuthContext,
@@ -220,7 +237,6 @@ export async function validateTerritoryAccess(
     return { allowed: false, reason: "FORBIDDEN_TERRITORY" };
   }
 
-  // User has at least one territory assigned — allowed
   return { allowed: true };
 }
 

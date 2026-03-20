@@ -44,6 +44,7 @@ const structureItems = [
 ];
 
 const adminItems = [
+  { title: 'RBAC', url: '/rbac', icon: Shield },
   { title: 'Configurações', url: '/settings', icon: Settings },
   { title: 'Docs', url: '/docs', icon: FileQuestion },
 ];
