@@ -15,7 +15,7 @@ serve(async (req) => {
 
     // Fetch opportunities with ownership filter
     let oppQuery = db.from("sales_opportunities").select("id, status, amount, monthly_value, pipeline_stage_id, owner_user_id, close_date");
-    oppQuery = applyOwnershipFilter(oppQuery, auth);
+    oppQuery = await applyOwnershipFilter(oppQuery, auth);
     const { data: opportunities = [], error: oppErr } = await oppQuery;
     if (oppErr) return errorResponse(400, oppErr.message);
 
