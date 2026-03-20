@@ -178,6 +178,46 @@ export function useMarkLost() {
   });
 }
 
+// ===== Phase 6: Goals, Commissions & Ranking =====
+export function useGoals(filters?: Record<string, string>) {
+  return useQuery({ queryKey: ['goals', filters], queryFn: () => salesService.fetchGoals(filters) });
+}
+
+export function useUpsertGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.upsertGoal,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['goals'] });
+      qc.invalidateQueries({ queryKey: ['goal-performance'] });
+      qc.invalidateQueries({ queryKey: ['ranking-summary'] });
+    },
+  });
+}
+
+export function useCommissions(filters?: Record<string, string>) {
+  return useQuery({ queryKey: ['commissions', filters], queryFn: () => salesService.fetchCommissions(filters) });
+}
+
+export function useSyncCommissions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (periodMonth?: string) => salesService.syncCommissionsFromCore(periodMonth),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['commissions'] });
+      qc.invalidateQueries({ queryKey: ['ranking-summary'] });
+    },
+  });
+}
+
+export function useRankingSummary(periodMonth?: string) {
+  return useQuery({ queryKey: ['ranking-summary', periodMonth], queryFn: () => salesService.fetchRankingSummary(periodMonth) });
+}
+
+export function useGoalPerformance(periodMonth?: string) {
+  return useQuery({ queryKey: ['goal-performance', periodMonth], queryFn: () => salesService.fetchGoalPerformance(periodMonth) });
+}
+
 // ===== Stubs =====
 export function useLeads(filters?: Record<string, any>) {
   return useQuery({ queryKey: ['leads', filters], queryFn: () => salesService.fetchLeads(filters) });
