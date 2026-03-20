@@ -202,6 +202,38 @@ export async function fetchForecastSummary() {
   return salesGet('sales-forecast-summary');
 }
 
+// ===== Phase 5: Revenue Engine =====
+export async function markOpportunityWon(data: {
+  opportunity_id: string;
+  amount?: number;
+  monthly_value?: number;
+  mrr?: number;
+  tcv?: number;
+  contract_type?: string;
+  billing_cycle?: string;
+  contract_start_date?: string;
+  contract_end_date?: string;
+  notes?: string;
+}) {
+  return salesPost('sales-opportunity-mark-won', data);
+}
+
+export async function markOpportunityLost(data: {
+  opportunity_id: string;
+  loss_reason_id: string;
+  notes?: string;
+}) {
+  return salesPost('sales-opportunity-mark-lost', data);
+}
+
+export async function fetchRevenueSummary() {
+  return salesGet('sales-revenue-summary');
+}
+
+export async function fetchRevenueEvents(filters?: Record<string, string>) {
+  return salesGet('sales-revenue-events-list', filters);
+}
+
 // ===== Stubs for future features =====
 export async function fetchLeads(_filters?: Record<string, any>) { return []; }
 export async function fetchProposals() { return []; }
