@@ -59,7 +59,7 @@ async function resolveRoles(
 
     if (!rolesErr && Array.isArray(localRoles) && localRoles.length > 0) {
       console.log("[sales-auth] Roles from local RBAC:", localRoles);
-      const { data: localPerms } = await commercialDb.rpc("rbac_get_user_permissions", { p_user_id: user.id });
+      const { data: localPerms } = await localDb.rpc("rbac_get_user_permissions", { p_user_id: user.id });
       return { roles: localRoles, permissions: Array.isArray(localPerms) ? localPerms : [] };
     }
     console.log("[sales-auth] No local RBAC roles found, checking fallbacks");
