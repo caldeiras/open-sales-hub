@@ -55,6 +55,7 @@ serve(async (req) => {
         step_order: body.step_order || 1,
         type: body.type,
         delay_days: body.delay_days ?? 0,
+        delay_hours: body.delay_hours ?? 0,
         template_id: body.template_id || null,
         subject: body.subject || null,
         description: body.description || null,
