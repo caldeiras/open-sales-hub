@@ -287,10 +287,20 @@ export function useTeamSummary(teamId?: string) {
   return useQuery({ queryKey: ['team-summary', teamId], queryFn: () => salesService.fetchTeamSummary(teamId) });
 }
 
-// ===== Stubs =====
+// ===== Leads =====
 export function useLeads(filters?: Record<string, any>) {
   return useQuery({ queryKey: ['leads', filters], queryFn: () => salesService.fetchLeads(filters) });
 }
+
+export function useUpsertLead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.upsertLead,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['leads'] }); },
+  });
+}
+
+// ===== Stubs =====
 
 export function useProposals() {
   return useQuery({ queryKey: ['proposals'], queryFn: salesService.fetchProposals });
