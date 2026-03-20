@@ -1,22 +1,68 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useOpportunity, useStageHistory, useNotes, useOpportunityProducts, usePipelineStages } from '@/hooks/useSalesData';
+import { useOpportunity, useStageHistory, usePipelineStages, useActivities, useMoveOpportunityStage, useLossReasons } from '@/hooks/useSalesData';
+import { useSalesAuth } from '@/contexts/SalesAuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { StatusBadge, StageBadge } from '@/components/sales/StatusBadge';
-import { PermissionGate } from '@/components/sales/PermissionGate';
-import { ArrowLeft, Edit, RefreshCw, Trophy, XCircle, Pause, Play, Plus, FileText, Clock } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { StatusBadge } from '@/components/sales/StatusBadge';
+import { ArrowLeft, ArrowRight, Clock, Trophy, XCircle } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { toast } from 'sonner';
 
 export default function OpportunityDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: opp, isLoading } = useOpportunity(id!);
   const { data: history = [] } = useStageHistory(id!);
-  const { data: notes = [] } = useNotes('opportunity', id!);
-  const { data: products = [] } = useOpportunityProducts(id!);
   const { data: stages = [] } = usePipelineStages();
+  const { data: activities = [] } = useActivities({ opportunity_id: id! });
+  const { data: lossReasons = [] } = useLossReasons();
+  const moveMutation = useMoveOpportunityStage();
+  const { hasAnyRole } = useSalesAuth();
 
-  const formatCurrency = (v: number) => v ? `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` : '—';
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [toStageId, setToStageId] = useState('');
+  const [moveNotes, setMoveNotes] = useState('');
+  const [moveStatus, setMoveStatus] = useState('');
+  const [lossReasonId, setLossReasonId] = useState('');
+  const [wonAmount, setWonAmount] = useState('');
+  const [wonMRR, setWonMRR] = useState('');
+
+  const canMove = hasAnyRole(['admin', 'gerente_comercial', 'comercial']);
+
+  const activeStages = useMemo(() =>
+    stages.filter((s: any) => s.is_active).sort((a: any, b: any) => a.stage_order - b.stage_order),
+    [stages]
+  );
+
+  const formatCurrency = (v: any) => v ? `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` : '—';
+
+  const handleMove = async () => {
+    if (!toStageId) return;
+    const payload: any = { opportunity_id: id!, to_stage_id: toStageId, notes: moveNotes || undefined };
+    if (moveStatus === 'won') {
+      payload.status = 'won';
+      if (wonAmount) payload.amount = parseFloat(wonAmount);
+      if (wonMRR) payload.monthly_value = parseFloat(wonMRR);
+    } else if (moveStatus === 'lost') {
+      if (!lossReasonId) { toast.error('Selecione o motivo da perda'); return; }
+      payload.status = 'lost';
+      payload.loss_reason_id = lossReasonId;
+    } else if (moveStatus === 'hold') {
+      payload.status = 'hold';
+    }
+    try {
+      await moveMutation.mutateAsync(payload);
+      toast.success('Estágio atualizado');
+      setMoveOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao mover');
+    }
+  };
 
   if (isLoading) {
     return <div className="space-y-4">{[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-muted/50 rounded-lg animate-pulse" />)}</div>;
@@ -31,67 +77,50 @@ export default function OpportunityDetailPage() {
     );
   }
 
+  const oppActivities = activities.filter((a: any) => a.opportunity_id === id);
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div className="flex items-start gap-3">
-          <Button variant="ghost" size="icon" className="mt-1" onClick={() => navigate('/opportunities')}>
+          <Button variant="ghost" size="icon" className="mt-1" onClick={() => navigate('/pipeline')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">{opp.title}</h1>
-            <p className="text-sm text-muted-foreground">{opp.account?.company_name || '—'}</p>
+            <p className="text-sm text-muted-foreground">{opp.account?.name || '—'}</p>
             <div className="flex items-center gap-2 mt-2">
-              <StatusBadge status={opp.pipeline_status} />
-              {opp.stage && <StageBadge stage={opp.stage.stage_name} color={opp.stage.color} />}
+              <StatusBadge status={opp.status} />
+              {opp.stage && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium text-white" style={{ backgroundColor: opp.stage.color || 'hsl(var(--primary))' }}>
+                  {opp.stage.stage_name}
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <PermissionGate permissionKey="opportunities.edit">
-            <Button variant="outline" size="sm"><Edit className="h-3.5 w-3.5 mr-1" /> Editar</Button>
-          </PermissionGate>
-          <PermissionGate permissionKey="opportunities.change_stage">
-            <Button variant="outline" size="sm"><RefreshCw className="h-3.5 w-3.5 mr-1" /> Mudar Etapa</Button>
-          </PermissionGate>
-          <PermissionGate permissionKey="opportunities.mark_won">
-            <Button variant="outline" size="sm" className="text-[hsl(var(--success))]"><Trophy className="h-3.5 w-3.5 mr-1" /> Ganho</Button>
-          </PermissionGate>
-          <PermissionGate permissionKey="opportunities.mark_lost">
-            <Button variant="outline" size="sm" className="text-destructive"><XCircle className="h-3.5 w-3.5 mr-1" /> Perda</Button>
-          </PermissionGate>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" size="sm" disabled={opp.pipeline_status !== 'open'}><Pause className="h-3.5 w-3.5 mr-1" /> Hold</Button>
-            </TooltipTrigger>
-            {opp.pipeline_status !== 'open' && <TooltipContent>Apenas oportunidades abertas</TooltipContent>}
-          </Tooltip>
-          <Button variant="outline" size="sm"><Plus className="h-3.5 w-3.5 mr-1" /> Atividade</Button>
-          <Button variant="outline" size="sm"><FileText className="h-3.5 w-3.5 mr-1" /> Proposta</Button>
-        </div>
+        {canMove && opp.status === 'open' && (
+          <Button variant="outline" size="sm" onClick={() => { setMoveOpen(true); setToStageId(''); setMoveNotes(''); setMoveStatus(''); }}>
+            <ArrowRight className="h-3.5 w-3.5 mr-1" /> Mover Estágio
+          </Button>
+        )}
       </div>
 
-      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Details */}
+        {/* Main */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader><CardTitle className="text-base">Dados da Oportunidade</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {[
-                  { label: 'MRR Estimado', value: formatCurrency(opp.estimated_mrr) },
-                  { label: 'Setup Estimado', value: formatCurrency(opp.estimated_setup) },
-                  { label: 'TCV Estimado', value: formatCurrency(opp.estimated_tcv) },
-                  { label: 'Probabilidade', value: opp.probability ? `${opp.probability}%` : '—' },
-                  { label: 'Previsão de Fechamento', value: opp.expected_close_date ? new Date(opp.expected_close_date).toLocaleDateString('pt-BR') : '—' },
-                  { label: 'Contato', value: opp.contact ? `${opp.contact.first_name} ${opp.contact.last_name || ''}` : '—' },
-                  { label: 'Origem', value: opp.source?.source_name || '—' },
-                  { label: 'Segmento', value: opp.segment?.segment_name || '—' },
-                  { label: 'Concorrente', value: opp.competitor_name || '—' },
+                  { label: 'Valor', value: formatCurrency(opp.amount) },
+                  { label: 'MRR', value: formatCurrency(opp.monthly_value) },
+                  { label: 'Previsão', value: opp.close_date ? new Date(opp.close_date).toLocaleDateString('pt-BR') : '—' },
+                  { label: 'Temperatura', value: opp.temperature || '—' },
+                  { label: 'Status', value: opp.status },
                 ].map((item) => (
                   <div key={item.label}>
                     <p className="text-xs text-muted-foreground">{item.label}</p>
@@ -99,50 +128,32 @@ export default function OpportunityDetailPage() {
                   </div>
                 ))}
               </div>
-              {opp.strategic_notes && (
+              {opp.notes && (
                 <div className="mt-4 pt-4 border-t">
-                  <p className="text-xs text-muted-foreground mb-1">Notas Estratégicas</p>
-                  <p className="text-sm">{opp.strategic_notes}</p>
+                  <p className="text-xs text-muted-foreground mb-1">Notas</p>
+                  <p className="text-sm">{opp.notes}</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Products */}
-          {products.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Produtos</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {products.map((p: any) => (
-                    <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                      <div>
-                        <p className="text-sm font-medium">{p.product_name}</p>
-                        <p className="text-xs text-muted-foreground">{p.recurrence || '—'} • Qtd: {p.quantity || 1}</p>
-                      </div>
-                      <p className="text-sm font-semibold">{formatCurrency(p.total_price || 0)}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Notes */}
+          {/* Activities */}
           <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="text-base">Notas</CardTitle>
-              <Button variant="outline" size="sm"><Plus className="h-3.5 w-3.5 mr-1" /> Nota</Button>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-base">Atividades ({oppActivities.length})</CardTitle></CardHeader>
             <CardContent>
-              {notes.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma nota</p>
+              {oppActivities.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma atividade vinculada</p>
               ) : (
                 <div className="space-y-3">
-                  {notes.map((n: any) => (
-                    <div key={n.id} className="p-3 bg-muted/30 rounded-lg">
-                      <p className="text-sm">{n.content}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{new Date(n.created_at).toLocaleString('pt-BR')}</p>
+                  {oppActivities.map((a: any) => (
+                    <div key={a.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                      <div>
+                        <p className="text-sm font-medium">{a.subject}</p>
+                        <p className="text-xs text-muted-foreground">{a.activity_type} • {a.status}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {a.due_at ? new Date(a.due_at).toLocaleDateString('pt-BR') : '—'}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -153,9 +164,9 @@ export default function OpportunityDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Stage Timeline */}
+          {/* Stage History */}
           <Card>
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4" /> Histórico de Etapas</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4" /> Histórico de Estágios</CardTitle></CardHeader>
             <CardContent>
               {history.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">Sem histórico</p>
@@ -164,12 +175,20 @@ export default function OpportunityDetailPage() {
                   {history.map((h: any) => (
                     <div key={h.id} className="relative pl-4 border-l-2 border-muted pb-3 last:pb-0">
                       <div className="absolute -left-1.5 top-1 w-3 h-3 rounded-full bg-primary" />
-                      <div className="flex items-center gap-2">
-                        {h.from_stage && <StageBadge stage={h.from_stage.stage_name} color={h.from_stage.color} />}
-                        {h.from_stage && <span className="text-xs text-muted-foreground">→</span>}
-                        <StageBadge stage={h.to_stage?.stage_name || '—'} color={h.to_stage?.color} />
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {h.from_stage && (
+                          <>
+                            <span className="text-xs px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: h.from_stage.color || 'hsl(var(--muted))' }}>
+                              {h.from_stage.stage_name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">→</span>
+                          </>
+                        )}
+                        <span className="text-xs px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: h.to_stage?.color || 'hsl(var(--primary))' }}>
+                          {h.to_stage?.stage_name || '—'}
+                        </span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">{new Date(h.changed_at).toLocaleString('pt-BR')}</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">{new Date(h.changed_at).toLocaleString('pt-BR')}</p>
                       {h.notes && <p className="text-xs mt-0.5">{h.notes}</p>}
                     </div>
                   ))}
@@ -178,13 +197,13 @@ export default function OpportunityDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Pipeline Stages Progress */}
+          {/* Stage Progress */}
           <Card>
             <CardHeader><CardTitle className="text-base">Etapas do Pipeline</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-1.5">
-                {stages.filter((s: any) => s.is_active).sort((a: any, b: any) => a.stage_order - b.stage_order).map((s: any) => {
-                  const isCurrent = s.id === opp.stage_id;
+                {activeStages.map((s: any) => {
+                  const isCurrent = s.id === opp.pipeline_stage_id;
                   const isPast = s.stage_order < (opp.stage?.stage_order || 0);
                   return (
                     <div key={s.id} className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm ${isCurrent ? 'bg-primary/10 font-semibold text-primary' : isPast ? 'text-muted-foreground' : 'text-muted-foreground/50'}`}>
@@ -198,6 +217,67 @@ export default function OpportunityDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Move Stage Dialog */}
+      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Mover Estágio</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Novo Estágio</Label>
+              <Select value={toStageId} onValueChange={setToStageId}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {activeStages.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.stage_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Ação adicional</Label>
+              <Select value={moveStatus} onValueChange={setMoveStatus}>
+                <SelectTrigger><SelectValue placeholder="Apenas mover" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="move_only">Apenas mover</SelectItem>
+                  <SelectItem value="won">Marcar Ganho</SelectItem>
+                  <SelectItem value="lost">Marcar Perdido</SelectItem>
+                  <SelectItem value="hold">Hold</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {moveStatus === 'won' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="text-xs">Valor Final</Label><Input type="number" value={wonAmount} onChange={(e) => setWonAmount(e.target.value)} /></div>
+                <div><Label className="text-xs">MRR Final</Label><Input type="number" value={wonMRR} onChange={(e) => setWonMRR(e.target.value)} /></div>
+              </div>
+            )}
+            {moveStatus === 'lost' && (
+              <div className="space-y-2">
+                <Label>Motivo *</Label>
+                <Select value={lossReasonId} onValueChange={setLossReasonId}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {lossReasons.filter((r: any) => r.is_active).map((r: any) => (
+                      <SelectItem key={r.id} value={r.id}>{r.reason_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Observação</Label>
+              <Textarea value={moveNotes} onChange={(e) => setMoveNotes(e.target.value)} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveOpen(false)}>Cancelar</Button>
+            <Button onClick={handleMove} disabled={!toStageId || moveMutation.isPending}>
+              {moveMutation.isPending ? 'Movendo...' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

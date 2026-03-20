@@ -155,10 +155,34 @@ export async function fetchLossReasons() {
   return fetchConfigTable('sales_loss_reasons', 'sort_order');
 }
 
-// ===== Stubs for future features (not in Phase 2 scope) =====
+// ===== Phase 3: Pipeline Engine =====
+export async function moveOpportunityStage(data: {
+  opportunity_id: string;
+  to_stage_id: string;
+  notes?: string;
+  status?: string;
+  loss_reason_id?: string;
+  amount?: number;
+  monthly_value?: number;
+}) {
+  return salesPost('sales-opportunity-move-stage', data);
+}
+
+export async function fetchStageHistory(opportunityId: string) {
+  return salesGet('sales-opportunity-history', { opportunity_id: opportunityId });
+}
+
+export async function fetchDashboardSummary() {
+  return salesGet('sales-dashboard-summary');
+}
+
+export async function fetchPipelineBoard(status?: string) {
+  return salesGet('sales-pipeline-board', status ? { status } : undefined);
+}
+
+// ===== Stubs for future features =====
 export async function fetchLeads(_filters?: Record<string, any>) { return []; }
 export async function fetchProposals() { return []; }
 export async function fetchNotes(_entityType: string, _entityId: string) { return []; }
-export async function fetchStageHistory(_opportunityId: string) { return []; }
 export async function fetchTags() { return []; }
 export async function fetchOpportunityProducts(_opportunityId: string) { return []; }

@@ -81,6 +81,33 @@ export function useUpsertActivity() {
   });
 }
 
+// ===== Phase 3: Pipeline Engine =====
+export function useDashboardSummary() {
+  return useQuery({ queryKey: ['dashboard-summary'], queryFn: salesService.fetchDashboardSummary });
+}
+
+export function usePipelineBoard(status?: string) {
+  return useQuery({ queryKey: ['pipeline-board', status], queryFn: () => salesService.fetchPipelineBoard(status) });
+}
+
+export function useStageHistory(opportunityId: string) {
+  return useQuery({ queryKey: ['stage-history', opportunityId], queryFn: () => salesService.fetchStageHistory(opportunityId), enabled: !!opportunityId });
+}
+
+export function useMoveOpportunityStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.moveOpportunityStage,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['opportunities'] });
+      qc.invalidateQueries({ queryKey: ['pipeline-board'] });
+      qc.invalidateQueries({ queryKey: ['pipeline-stages'] });
+      qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      qc.invalidateQueries({ queryKey: ['stage-history'] });
+    },
+  });
+}
+
 // ===== Stubs =====
 export function useLeads(filters?: Record<string, any>) {
   return useQuery({ queryKey: ['leads', filters], queryFn: () => salesService.fetchLeads(filters) });
@@ -92,10 +119,6 @@ export function useProposals() {
 
 export function useNotes(entityType: string, entityId: string) {
   return useQuery({ queryKey: ['notes', entityType, entityId], queryFn: () => salesService.fetchNotes(entityType, entityId), enabled: !!entityId });
-}
-
-export function useStageHistory(opportunityId: string) {
-  return useQuery({ queryKey: ['stage-history', opportunityId], queryFn: () => salesService.fetchStageHistory(opportunityId), enabled: !!opportunityId });
 }
 
 export function useTags() {
