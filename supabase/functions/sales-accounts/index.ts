@@ -41,7 +41,6 @@ serve(async (req) => {
       };
 
       if (body.id) {
-        // Update — check ownership
         if (!auth.isAdmin && !auth.isManager) {
           const { data: existing } = await db.from("sales_accounts").select("owner_user_id").eq("id", body.id).single();
           if (existing?.owner_user_id !== auth.userId) return errorResponse(403, "Not your record");
