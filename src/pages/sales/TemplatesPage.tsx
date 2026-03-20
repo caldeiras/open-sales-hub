@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useTemplates, useUpsertTemplate } from '@/hooks/useSalesData';
+import { useTemplates, useUpsertTemplate } from '@/hooks/usePlaybookData';
 import { Plus, FileText, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 

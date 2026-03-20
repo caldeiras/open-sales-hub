@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { usePlaybooks, useUpsertPlaybook, usePlaybookSteps, useUpsertPlaybookSteps } from '@/hooks/useSalesData';
+import { usePlaybooks, useUpsertPlaybook, usePlaybookSteps, useUpsertPlaybookSteps } from '@/hooks/usePlaybookData';
 import { StatusBadge } from '@/components/sales/StatusBadge';
 import { Plus, BookOpen, ChevronRight, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';

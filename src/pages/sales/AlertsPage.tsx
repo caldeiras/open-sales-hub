@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useAlerts, useMarkAlertRead, useMarkAllAlertsRead } from '@/hooks/useSalesData';
+import { useAlerts, useMarkAlertRead, useMarkAllAlertsRead } from '@/hooks/usePlaybookData';
 import { Bell, BellOff, CheckCheck, AlertTriangle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
