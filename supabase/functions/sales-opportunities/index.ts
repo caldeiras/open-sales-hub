@@ -49,18 +49,54 @@ serve(async (req) => {
 
     if (req.method === "POST") {
       const body = await req.json();
+      
+      // Validate probability
+      if (body.probability_percent !== undefined && body.probability_percent !== null) {
+        if (body.probability_percent < 0 || body.probability_percent > 100) {
+          return errorResponse(400, "probability_percent must be between 0 and 100");
+        }
+      }
+
+      // Auto-set probability based on status
+      let probability = body.probability_percent ?? null;
+      if (body.status === "won") probability = 100;
+      if (body.status === "lost") probability = 0;
+
+      // Validate lost requires loss_reason_id
+      if (body.status === "lost" && !body.loss_reason_id) {
+        return errorResponse(400, "loss_reason_id is required when status is lost");
+      }
+
+      const amount = body.amount ? Number(body.amount) : null;
+      const weighted = (amount && probability !== null) ? Math.round(amount * probability / 100 * 100) / 100 : null;
+
+      // Normalize expected_close_month to first day
+      let expectedCloseMonth = body.expected_close_month || null;
+      if (expectedCloseMonth) {
+        const d = new Date(expectedCloseMonth);
+        if (!isNaN(d.getTime())) {
+          expectedCloseMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+        }
+      }
+
       const record = {
         account_id: body.account_id,
         title: body.title,
         pipeline_stage_id: body.pipeline_stage_id,
         owner_user_id: body.owner_user_id || auth.userId,
-        amount: body.amount || null,
+        amount: amount,
         monthly_value: body.monthly_value || null,
         close_date: body.close_date || null,
         status: body.status || "open",
         temperature: body.temperature || null,
         loss_reason_id: body.loss_reason_id || null,
         notes: body.notes || null,
+        probability_percent: probability,
+        weighted_amount: weighted,
+        expected_close_month: expectedCloseMonth,
+        proposal_id: body.proposal_id || null,
+        proposal_external_id: body.proposal_external_id || null,
+        proposal_number: body.proposal_number || null,
       };
 
       if (body.id) {
