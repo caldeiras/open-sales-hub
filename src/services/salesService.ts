@@ -1,6 +1,14 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const client = supabase as any;
+/**
+ * LOCAL client — used ONLY for sales_* tables owned by SALES OPEN.
+ * 
+ * Client map:
+ *  - identityClient  → auth, profiles, user_roles, roles (macmkfoknhofnwhizsqc)
+ *  - commercialClient → proposals, contracts, pricing from CORE (zkjrcenhemnnlmjiysbc)
+ *  - localClient (this) → sales_* domain tables in Lovable Cloud
+ */
+const localClient = supabase as any;
 
 // ===== Pipeline Stages =====
 export async function fetchPipelineStages() {
