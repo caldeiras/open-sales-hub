@@ -10,6 +10,8 @@ export default function DashboardPage() {
   const { data: forecast, isLoading: forecastLoading } = useForecastSummary();
   const { data: revenue, isLoading: revenueLoading } = useRevenueSummary();
   const { data: activities = [] } = useActivities();
+  const { data: ranking } = useRankingSummary();
+  const { data: goalPerf } = useGoalPerformance();
   const { hasAnyRole } = useSalesAuth();
 
   const isManager = hasAnyRole(['admin', 'gerente_comercial']);
