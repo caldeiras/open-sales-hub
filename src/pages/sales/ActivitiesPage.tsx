@@ -19,10 +19,10 @@ export default function ActivitiesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
 
-  // Only load dropdown data when dialog is open to avoid unnecessary 403s
-  const { data: accounts = [] } = useAccounts(dialogOpen ? undefined : { _skip: 'true' });
-  const { data: opportunities = [] } = useOpportunities(dialogOpen ? undefined : { _skip: 'true' });
-  const { data: contacts = [] } = useContacts(dialogOpen ? undefined : { _skip: 'true' });
+  // Only load dropdown data when dialog is open to avoid unnecessary requests
+  const { data: accounts = [] } = useAccounts(dialogOpen ? {} : { _enabled: false });
+  const { data: opportunities = [] } = useOpportunities(dialogOpen ? {} : { _enabled: false });
+  const { data: contacts = [] } = useContacts(dialogOpen ? {} : { _enabled: false });
 
   const openNew = () => { setEditing(null); setDialogOpen(true); };
   const openEdit = (item: any) => { setEditing(item); setDialogOpen(true); };
