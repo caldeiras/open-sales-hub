@@ -54,8 +54,8 @@ async function resolveRoles(
 ): Promise<{ roles: string[]; permissions: string[] }> {
   // Source 1: Local RBAC tables (canonical)
   try {
-    const commercialDb = getCommercialClient();
-    const { data: localRoles, error: rolesErr } = await commercialDb.rpc("rbac_get_user_roles", { p_user_id: user.id });
+    const localDb = getLocalClient();
+    const { data: localRoles, error: rolesErr } = await localDb.rpc("rbac_get_user_roles", { p_user_id: user.id });
 
     if (!rolesErr && Array.isArray(localRoles) && localRoles.length > 0) {
       console.log("[sales-auth] Roles from local RBAC:", localRoles);
