@@ -234,6 +234,37 @@ export async function fetchRevenueEvents(filters?: Record<string, string>) {
   return salesGet('sales-revenue-events-list', filters);
 }
 
+// ===== Phase 6: Goals, Commissions & Ranking =====
+export async function fetchGoals(filters?: Record<string, string>) {
+  return salesGet('sales-goals', filters);
+}
+
+export async function upsertGoal(data: {
+  owner_user_id: string;
+  period_month: string;
+  metric: string;
+  target_value: number;
+  achieved_value?: number;
+}) {
+  return salesPost('sales-goals', data);
+}
+
+export async function fetchCommissions(filters?: Record<string, string>) {
+  return salesGet('sales-commissions', filters);
+}
+
+export async function syncCommissionsFromCore(periodMonth?: string) {
+  return salesPost('sales-sync-commissions-from-core', { period_month: periodMonth });
+}
+
+export async function fetchRankingSummary(periodMonth?: string) {
+  return salesGet('sales-ranking-summary', periodMonth ? { period_month: periodMonth } : undefined);
+}
+
+export async function fetchGoalPerformance(periodMonth?: string) {
+  return salesGet('sales-goal-performance', periodMonth ? { period_month: periodMonth } : undefined);
+}
+
 // ===== Stubs for future features =====
 export async function fetchLeads(_filters?: Record<string, any>) { return []; }
 export async function fetchProposals() { return []; }
