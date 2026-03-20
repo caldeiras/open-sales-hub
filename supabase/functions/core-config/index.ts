@@ -10,18 +10,24 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const coreUrl = Deno.env.get("CORE_SUPABASE_URL");
-  const coreAnonKey = Deno.env.get("CORE_SUPABASE_ANON_KEY");
+  const identityUrl = Deno.env.get("CORE_SUPABASE_URL");
+  const identityAnonKey = Deno.env.get("CORE_SUPABASE_ANON_KEY");
+  const commercialUrl = Deno.env.get("COMMERCIAL_SUPABASE_URL");
+  const commercialAnonKey = Deno.env.get("COMMERCIAL_SUPABASE_ANON_KEY");
 
-  if (!coreUrl || !coreAnonKey) {
-    return new Response(JSON.stringify({ error: "CORE credentials not configured" }), {
+  if (!identityUrl || !identityAnonKey) {
+    return new Response(JSON.stringify({ error: "Identity credentials not configured" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  // Anon keys are publishable/public — safe to return to the frontend
-  return new Response(JSON.stringify({ url: coreUrl, anonKey: coreAnonKey }), {
+  return new Response(JSON.stringify({
+    identityUrl,
+    identityAnonKey,
+    commercialUrl: commercialUrl || null,
+    commercialAnonKey: commercialAnonKey || null,
+  }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });

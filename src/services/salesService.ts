@@ -1,17 +1,25 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const client = supabase as any;
+/**
+ * LOCAL client — used ONLY for sales_* tables owned by SALES OPEN.
+ * 
+ * Client map:
+ *  - identityClient  → auth, profiles, user_roles, roles (macmkfoknhofnwhizsqc)
+ *  - commercialClient → proposals, contracts, pricing from CORE (zkjrcenhemnnlmjiysbc)
+ *  - localClient (this) → sales_* domain tables in Lovable Cloud
+ */
+const localClient = supabase as any;
 
 // ===== Pipeline Stages =====
 export async function fetchPipelineStages() {
-  const { data, error } = await client.from('sales_pipeline_stages').select('*').order('stage_order');
+  const { data, error } = await localClient.from('sales_pipeline_stages').select('*').order('stage_order');
   if (error) throw error;
   return data || [];
 }
 
 // ===== Opportunities =====
 export async function fetchOpportunities(filters?: Record<string, any>) {
-  let query = client.from('sales_opportunities').select(`
+  let query = localClient.from('sales_opportunities').select(`
     *,
     account:sales_accounts(id, company_name),
     contact:sales_contacts(id, first_name, last_name),
@@ -32,7 +40,7 @@ export async function fetchOpportunities(filters?: Record<string, any>) {
 }
 
 export async function fetchOpportunityById(id: string) {
-  const { data, error } = await client.from('sales_opportunities').select(`
+  const { data, error } = await localClient.from('sales_opportunities').select(`
     *,
     account:sales_accounts(*),
     contact:sales_contacts(*),
@@ -47,7 +55,7 @@ export async function fetchOpportunityById(id: string) {
 
 // ===== Leads =====
 export async function fetchLeads(filters?: Record<string, any>) {
-  let query = client.from('sales_leads').select('*').order('created_at', { ascending: false });
+  let query = localClient.from('sales_leads').select('*').order('created_at', { ascending: false });
   if (filters?.status) query = query.eq('status', filters.status);
   if (filters?.source_id) query = query.eq('source_id', filters.source_id);
   if (filters?.owner_user_id) query = query.eq('owner_user_id', filters.owner_user_id);
@@ -58,7 +66,7 @@ export async function fetchLeads(filters?: Record<string, any>) {
 
 // ===== Accounts =====
 export async function fetchAccounts(filters?: Record<string, any>) {
-  let query = client.from('sales_accounts').select('*').order('company_name');
+  let query = localClient.from('sales_accounts').select('*').order('company_name');
   if (filters?.status) query = query.eq('status', filters.status);
   if (filters?.segment_id) query = query.eq('segment_id', filters.segment_id);
   const { data, error } = await query;
@@ -67,14 +75,14 @@ export async function fetchAccounts(filters?: Record<string, any>) {
 }
 
 export async function fetchAccountById(id: string) {
-  const { data, error } = await client.from('sales_accounts').select('*').eq('id', id).single();
+  const { data, error } = await localClient.from('sales_accounts').select('*').eq('id', id).single();
   if (error) throw error;
   return data;
 }
 
 // ===== Contacts =====
 export async function fetchContacts(filters?: Record<string, any>) {
-  let query = client.from('sales_contacts').select(`*, account:sales_accounts(id, company_name)`).order('first_name');
+  let query = localClient.from('sales_contacts').select(`*, account:sales_accounts(id, company_name)`).order('first_name');
   if (filters?.account_id) query = query.eq('account_id', filters.account_id);
   const { data, error } = await query;
   if (error) throw error;
@@ -83,7 +91,7 @@ export async function fetchContacts(filters?: Record<string, any>) {
 
 // ===== Activities =====
 export async function fetchActivities(filters?: Record<string, any>) {
-  let query = client.from('sales_activities').select(`
+  let query = localClient.from('sales_activities').select(`
     *,
     opportunity:sales_opportunities(id, title),
     account:sales_accounts(id, company_name),
@@ -98,7 +106,7 @@ export async function fetchActivities(filters?: Record<string, any>) {
 
 // ===== Proposals =====
 export async function fetchProposals() {
-  const { data, error } = await client.from('sales_proposals_links').select(`
+  const { data, error } = await localClient.from('sales_proposals_links').select(`
     *,
     opportunity:sales_opportunities(id, title, account:sales_accounts(id, company_name))
   `).order('created_at', { ascending: false });
@@ -108,7 +116,7 @@ export async function fetchProposals() {
 
 // ===== Notes =====
 export async function fetchNotes(entityType: string, entityId: string) {
-  const { data, error } = await client.from('sales_notes')
+  const { data, error } = await localClient.from('sales_notes')
     .select('*')
     .eq('entity_type', entityType)
     .eq('entity_id', entityId)
@@ -119,7 +127,7 @@ export async function fetchNotes(entityType: string, entityId: string) {
 
 // ===== Stage History =====
 export async function fetchStageHistory(opportunityId: string) {
-  const { data, error } = await client.from('sales_opportunity_stage_history').select(`
+  const { data, error } = await localClient.from('sales_opportunity_stage_history').select(`
     *,
     from_stage:sales_pipeline_stages!from_stage_id(stage_name, color),
     to_stage:sales_pipeline_stages!to_stage_id(stage_name, color)
@@ -130,35 +138,35 @@ export async function fetchStageHistory(opportunityId: string) {
 
 // ===== Tags =====
 export async function fetchTags() {
-  const { data, error } = await client.from('sales_tags').select('*').order('tag_name');
+  const { data, error } = await localClient.from('sales_tags').select('*').order('tag_name');
   if (error) throw error;
   return data || [];
 }
 
 // ===== Lead Sources =====
 export async function fetchLeadSources() {
-  const { data, error } = await client.from('sales_lead_sources').select('*').order('source_name');
+  const { data, error } = await localClient.from('sales_lead_sources').select('*').order('source_name');
   if (error) throw error;
   return data || [];
 }
 
 // ===== Segments =====
 export async function fetchSegments() {
-  const { data, error } = await client.from('sales_segments').select('*').order('segment_name');
+  const { data, error } = await localClient.from('sales_segments').select('*').order('segment_name');
   if (error) throw error;
   return data || [];
 }
 
 // ===== Loss Reasons =====
 export async function fetchLossReasons() {
-  const { data, error } = await client.from('sales_loss_reasons').select('*').order('reason_name');
+  const { data, error } = await localClient.from('sales_loss_reasons').select('*').order('reason_name');
   if (error) throw error;
   return data || [];
 }
 
 // ===== Opportunity Products =====
 export async function fetchOpportunityProducts(opportunityId: string) {
-  const { data, error } = await client.from('sales_opportunity_products')
+  const { data, error } = await localClient.from('sales_opportunity_products')
     .select('*')
     .eq('opportunity_id', opportunityId);
   if (error) throw error;
