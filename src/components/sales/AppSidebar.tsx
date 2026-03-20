@@ -28,6 +28,7 @@ const cadenceItems = [
   { title: 'Playbooks', url: '/playbooks', icon: BookOpen },
   { title: 'Templates', url: '/templates', icon: MessageSquare },
   { title: 'Alertas', url: '/alerts', icon: Bell },
+  { title: 'Inteligência', url: '/priority', icon: Brain },
 ];
 
 const resultItems = [

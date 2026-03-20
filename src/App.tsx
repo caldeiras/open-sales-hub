@@ -60,6 +60,7 @@ const App = () => (
                 <Route path="/playbooks" element={<PlaybooksPage />} />
                 <Route path="/templates" element={<TemplatesPage />} />
                 <Route path="/alerts" element={<AlertsPage />} />
+                <Route path="/priority" element={<PriorityPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
