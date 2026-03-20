@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, Building2, Contact, Target, Kanban,
   CalendarCheck, FileText, TrendingUp, DollarSign, BarChart3, Settings,
-  LogOut,
+  LogOut, UsersRound, Map, Briefcase,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useSalesAuth } from '@/contexts/SalesAuthContext';
