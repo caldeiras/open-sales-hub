@@ -29,6 +29,7 @@ import PlaybooksPage from "./pages/sales/PlaybooksPage";
 import TemplatesPage from "./pages/sales/TemplatesPage";
 import AlertsPage from "./pages/sales/AlertsPage";
 import PriorityPage from "./pages/sales/PriorityPage";
+import DocsPage from "./pages/sales/DocsPage";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,7 @@ const App = () => (
                 <Route path="/alerts" element={<AlertsPage />} />
                 <Route path="/priority" element={<PriorityPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/docs" element={<DocsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </SalesLayout>

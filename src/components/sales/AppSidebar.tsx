@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, Building2, Contact, Target, Kanban,
   CalendarCheck, FileText, TrendingUp, DollarSign, BarChart3, Settings,
   LogOut, UsersRound, Map, Briefcase, BookOpen, MessageSquare, Bell,
-  Brain,
+  Brain, FileQuestion,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useSalesAuth } from '@/contexts/SalesAuthContext';
@@ -45,6 +45,7 @@ const structureItems = [
 
 const adminItems = [
   { title: 'Configurações', url: '/settings', icon: Settings },
+  { title: 'Docs', url: '/docs', icon: FileQuestion },
 ];
 
 export function AppSidebar() {
