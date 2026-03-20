@@ -31,6 +31,20 @@ export default function OpportunitiesPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const status = fd.get('status') as string || 'open';
+
+    // Validate lost requires loss_reason
+    if (status === 'lost' && !fd.get('loss_reason_id')) {
+      toast({ title: 'Erro', description: 'Motivo de perda é obrigatório', variant: 'destructive' });
+      return;
+    }
+
+    const probability = fd.get('probability_percent') ? Number(fd.get('probability_percent')) : null;
+    if (probability !== null && (probability < 0 || probability > 100)) {
+      toast({ title: 'Erro', description: 'Probabilidade deve estar entre 0 e 100', variant: 'destructive' });
+      return;
+    }
+
     const payload: any = {
       account_id: fd.get('account_id'),
       title: fd.get('title'),
@@ -38,10 +52,12 @@ export default function OpportunitiesPage() {
       amount: fd.get('amount') ? Number(fd.get('amount')) : null,
       monthly_value: fd.get('monthly_value') ? Number(fd.get('monthly_value')) : null,
       close_date: fd.get('close_date') || null,
-      status: fd.get('status') || 'open',
+      status,
       temperature: fd.get('temperature') || null,
       loss_reason_id: fd.get('loss_reason_id') || null,
       notes: fd.get('notes') || null,
+      probability_percent: status === 'won' ? 100 : status === 'lost' ? 0 : probability,
+      expected_close_month: fd.get('expected_close_month') || null,
     };
     if (editing?.id) payload.id = editing.id;
 
@@ -60,7 +76,8 @@ export default function OpportunitiesPage() {
     { key: 'stage', header: 'Etapa', render: (item) => item.stage ? <StageBadge stage={item.stage.stage_name} color={item.stage.color} /> : '—' },
     { key: 'status', header: 'Status', render: (item) => <StatusBadge status={item.status} /> },
     { key: 'amount', header: 'Valor', render: (item) => formatCurrency(item.amount), className: 'text-right' },
-    { key: 'monthly_value', header: 'MRR', render: (item) => formatCurrency(item.monthly_value), className: 'text-right' },
+    { key: 'probability_percent', header: 'Prob.', render: (item) => item.probability_percent !== null && item.probability_percent !== undefined ? `${item.probability_percent}%` : '—', className: 'text-right' },
+    { key: 'weighted_amount', header: 'Ponderado', render: (item) => formatCurrency(item.weighted_amount), className: 'text-right' },
     { key: 'close_date', header: 'Previsão', sortable: true, render: (item) => item.close_date ? new Date(item.close_date).toLocaleDateString('pt-BR') : '—' },
     { key: 'actions', header: '', className: 'w-10', render: (item) => (
       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); openEdit(item); }}>
@@ -81,7 +98,7 @@ export default function OpportunitiesPage() {
       <DataTable data={opportunities} columns={columns} searchKeys={['title']} searchPlaceholder="Buscar oportunidades..." onRowClick={(item) => navigate(`/opportunities/${item.id}`)} loading={isLoading} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar Oportunidade' : 'Nova Oportunidade'}</DialogTitle>
           </DialogHeader>
@@ -118,7 +135,15 @@ export default function OpportunitiesPage() {
                 <Input id="monthly_value" name="monthly_value" type="number" step="0.01" defaultValue={editing?.monthly_value || ''} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="close_date">Previsão de fechamento</Label>
+                <Label htmlFor="probability_percent">Probabilidade (%)</Label>
+                <Input id="probability_percent" name="probability_percent" type="number" min="0" max="100" step="1" defaultValue={editing?.probability_percent ?? ''} placeholder="0-100" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="expected_close_month">Mês previsto</Label>
+                <Input id="expected_close_month" name="expected_close_month" type="month" defaultValue={editing?.expected_close_month?.substring(0, 7) || ''} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="close_date">Data de fechamento</Label>
                 <Input id="close_date" name="close_date" type="date" defaultValue={editing?.close_date || ''} />
               </div>
               <div className="space-y-1.5">
@@ -129,6 +154,7 @@ export default function OpportunitiesPage() {
                     <SelectItem value="open">Aberta</SelectItem>
                     <SelectItem value="won">Ganha</SelectItem>
                     <SelectItem value="lost">Perdida</SelectItem>
+                    <SelectItem value="hold">Hold</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -60,12 +60,18 @@ serve(async (req) => {
     // If body includes status change
     if (body.status === "won") {
       update.status = "won";
+      update.probability_percent = 100;
       if (amount !== undefined) update.amount = amount;
       if (monthly_value !== undefined) update.monthly_value = monthly_value;
+      // Recalculate weighted
+      const finalAmount = amount !== undefined ? Number(amount) : (Number(opp.amount) || 0);
+      update.weighted_amount = finalAmount ? Math.round(finalAmount * 100) / 100 : null;
     } else if (body.status === "lost") {
       if (!loss_reason_id) return errorResponse(400, "loss_reason_id is required when marking as lost");
       update.status = "lost";
       update.loss_reason_id = loss_reason_id;
+      update.probability_percent = 0;
+      update.weighted_amount = 0;
     } else if (body.status === "hold") {
       update.status = "hold";
     }
