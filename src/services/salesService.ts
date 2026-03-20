@@ -265,6 +265,55 @@ export async function fetchGoalPerformance(periodMonth?: string) {
   return salesGet('sales-goal-performance', periodMonth ? { period_month: periodMonth } : undefined);
 }
 
+// ===== Phase 7: Commercial Structure =====
+export async function fetchTeams() {
+  return salesGet('sales-teams');
+}
+
+export async function upsertTeam(data: { id?: string; name: string; description?: string; manager_user_id: string; active?: boolean }) {
+  return salesPost('sales-teams', data);
+}
+
+export async function fetchTeamMembers(teamId?: string) {
+  return salesGet('sales-team-members', teamId ? { team_id: teamId } : undefined);
+}
+
+export async function manageTeamMember(data: { team_id: string; user_id: string; role?: string; active?: boolean; action?: string }) {
+  return salesPost('sales-team-members', data);
+}
+
+export async function fetchTerritories() {
+  return salesGet('sales-territories');
+}
+
+export async function upsertTerritory(data: { id?: string; name: string; type: string; description?: string; active?: boolean }) {
+  return salesPost('sales-territories', data);
+}
+
+export async function fetchTerritoryAssignments(territoryId?: string) {
+  return salesGet('sales-territory-assignments', territoryId ? { territory_id: territoryId } : undefined);
+}
+
+export async function assignTerritory(data: { territory_id: string; owner_user_id: string; team_id?: string; priority?: number }) {
+  return salesPost('sales-territory-assignments', data);
+}
+
+export async function fetchAccountOwnerships(filters?: Record<string, string>) {
+  return salesGet('sales-account-ownership', filters);
+}
+
+export async function assignAccountOwner(data: { account_id: string; owner_user_id: string; team_id?: string }) {
+  return salesPost('sales-account-ownership', data);
+}
+
+export async function transferAccount(data: { account_id: string; new_owner_user_id: string; team_id?: string; reason?: string }) {
+  return salesPost('sales-account-ownership', { ...data, action: 'transfer' });
+}
+
+export async function fetchTeamSummary(teamId?: string) {
+  return salesGet('sales-team-summary', teamId ? { team_id: teamId } : undefined);
+}
+
 // ===== Stubs for future features =====
 export async function fetchLeads(_filters?: Record<string, any>) { return []; }
 export async function fetchProposals() { return []; }
