@@ -1,22 +1,24 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as salesService from '@/services/salesService';
 
+// ===== Config =====
 export function usePipelineStages() {
   return useQuery({ queryKey: ['pipeline-stages'], queryFn: salesService.fetchPipelineStages });
 }
 
-export function useOpportunities(filters?: Record<string, any>) {
-  return useQuery({ queryKey: ['opportunities', filters], queryFn: () => salesService.fetchOpportunities(filters) });
+export function useLeadSources() {
+  return useQuery({ queryKey: ['lead-sources'], queryFn: salesService.fetchLeadSources });
 }
 
-export function useOpportunity(id: string) {
-  return useQuery({ queryKey: ['opportunity', id], queryFn: () => salesService.fetchOpportunityById(id), enabled: !!id });
+export function useSegments() {
+  return useQuery({ queryKey: ['segments'], queryFn: salesService.fetchSegments });
 }
 
-export function useLeads(filters?: Record<string, any>) {
-  return useQuery({ queryKey: ['leads', filters], queryFn: () => salesService.fetchLeads(filters) });
+export function useLossReasons() {
+  return useQuery({ queryKey: ['loss-reasons'], queryFn: salesService.fetchLossReasons });
 }
 
+// ===== Accounts =====
 export function useAccounts(filters?: Record<string, any>) {
   return useQuery({ queryKey: ['accounts', filters], queryFn: () => salesService.fetchAccounts(filters) });
 }
@@ -25,12 +27,63 @@ export function useAccount(id: string) {
   return useQuery({ queryKey: ['account', id], queryFn: () => salesService.fetchAccountById(id), enabled: !!id });
 }
 
+export function useUpsertAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.upsertAccount,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['accounts'] }); },
+  });
+}
+
+// ===== Contacts =====
 export function useContacts(filters?: Record<string, any>) {
   return useQuery({ queryKey: ['contacts', filters], queryFn: () => salesService.fetchContacts(filters) });
 }
 
+export function useUpsertContact() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.upsertContact,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['contacts'] }); },
+  });
+}
+
+// ===== Opportunities =====
+export function useOpportunities(filters?: Record<string, any>) {
+  return useQuery({ queryKey: ['opportunities', filters], queryFn: () => salesService.fetchOpportunities(filters) });
+}
+
+export function useOpportunity(id: string) {
+  return useQuery({ queryKey: ['opportunity', id], queryFn: () => salesService.fetchOpportunityById(id), enabled: !!id });
+}
+
+export function useUpsertOpportunity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.upsertOpportunity,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['opportunities'] });
+      qc.invalidateQueries({ queryKey: ['pipeline-stages'] });
+    },
+  });
+}
+
+// ===== Activities =====
 export function useActivities(filters?: Record<string, any>) {
   return useQuery({ queryKey: ['activities', filters], queryFn: () => salesService.fetchActivities(filters) });
+}
+
+export function useUpsertActivity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: salesService.upsertActivity,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['activities'] }); },
+  });
+}
+
+// ===== Stubs =====
+export function useLeads(filters?: Record<string, any>) {
+  return useQuery({ queryKey: ['leads', filters], queryFn: () => salesService.fetchLeads(filters) });
 }
 
 export function useProposals() {
@@ -47,18 +100,6 @@ export function useStageHistory(opportunityId: string) {
 
 export function useTags() {
   return useQuery({ queryKey: ['tags'], queryFn: salesService.fetchTags });
-}
-
-export function useLeadSources() {
-  return useQuery({ queryKey: ['lead-sources'], queryFn: salesService.fetchLeadSources });
-}
-
-export function useSegments() {
-  return useQuery({ queryKey: ['segments'], queryFn: salesService.fetchSegments });
-}
-
-export function useLossReasons() {
-  return useQuery({ queryKey: ['loss-reasons'], queryFn: salesService.fetchLossReasons });
 }
 
 export function useOpportunityProducts(opportunityId: string) {
