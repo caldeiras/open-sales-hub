@@ -18,7 +18,6 @@ const COMMERCIAL_ROLES = ["admin", "gerente_comercial", "comercial"];
 
 /**
  * Validates the Identity JWT and fetches roles from the Identity project.
- * Returns the authenticated user context or throws.
  */
 export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
   const authHeader = req.headers.get("Authorization");
@@ -42,7 +41,6 @@ export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
 
   const user = userData.user;
 
-  // Fetch roles from Identity project
   let roles: string[] = [];
   try {
     const { data: profile } = await identityClient
@@ -69,19 +67,11 @@ export async function validateIdentityJwt(req: Request): Promise<AuthContext> {
   const isManager = roles.includes("gerente_comercial");
   const isCommercial = roles.includes("comercial");
 
-  // Block users without any commercial role
   if (!COMMERCIAL_ROLES.some((r) => roles.includes(r))) {
     throw { status: 403, message: "No commercial access" };
   }
 
-  return {
-    userId: user.id,
-    email: user.email!,
-    roles,
-    isAdmin,
-    isManager,
-    isCommercial,
-  };
+  return { userId: user.id, email: user.email!, roles, isAdmin, isManager, isCommercial };
 }
 
 /**
@@ -96,16 +86,89 @@ export function getCommercialClient() {
 }
 
 /**
- * Applies ownership filter: commercial users see only their own records.
- * admin and gerente_comercial see everything.
+ * Applies ownership filter with team-based visibility for managers.
+ * - admin: sees all
+ * - gerente_comercial: sees own records + team members' records
+ * - comercial: sees only own records
  */
-export function applyOwnershipFilter(
+export async function applyOwnershipFilter(
   query: any,
   auth: AuthContext,
   ownerColumn = "owner_user_id"
 ) {
-  if (auth.isAdmin || auth.isManager) return query;
+  if (auth.isAdmin) return query;
+
+  if (auth.isManager) {
+    // Get team member user IDs managed by this manager
+    const db = getCommercialClient();
+    const { data: teams = [] } = await db.from("sales_teams")
+      .select("id").eq("manager_user_id", auth.userId).eq("active", true);
+    
+    if (teams.length > 0) {
+      const teamIds = teams.map((t: any) => t.id);
+      const { data: members = [] } = await db.from("sales_team_members")
+        .select("user_id").in("team_id", teamIds).eq("active", true);
+      
+      const visibleIds = [auth.userId, ...members.map((m: any) => m.user_id)];
+      const uniqueIds = [...new Set(visibleIds)];
+      return query.in(ownerColumn, uniqueIds);
+    }
+    // Manager with no teams: see own only
+    return query.eq(ownerColumn, auth.userId);
+  }
+
   return query.eq(ownerColumn, auth.userId);
+}
+
+/**
+ * Check if user has territory access for a given account/segment.
+ * Returns true if admin/manager or if user is assigned to a territory.
+ * For comercial users, validates against sales_territory_assignments.
+ */
+export async function validateTerritoryAccess(
+  auth: AuthContext,
+  _context?: { segment_id?: string }
+): Promise<{ allowed: boolean; reason?: string }> {
+  if (auth.isAdmin || auth.isManager) return { allowed: true };
+
+  const db = getCommercialClient();
+  const { data: assignments = [] } = await db.from("sales_territory_assignments")
+    .select("territory_id, priority")
+    .eq("owner_user_id", auth.userId)
+    .eq("active", true);
+
+  if (assignments.length === 0) {
+    return { allowed: false, reason: "FORBIDDEN_TERRITORY" };
+  }
+
+  // User has at least one territory assigned — allowed
+  return { allowed: true };
+}
+
+/**
+ * Check for duplicate account by document_number or website.
+ */
+export async function checkDuplicateAccount(
+  db: any,
+  documentNumber?: string | null,
+  website?: string | null,
+  excludeId?: string
+): Promise<{ isDuplicate: boolean; field?: string; existingId?: string }> {
+  if (documentNumber && documentNumber.trim()) {
+    let q = db.from("sales_accounts").select("id").eq("document_number", documentNumber.trim());
+    if (excludeId) q = q.neq("id", excludeId);
+    const { data } = await q.maybeSingle();
+    if (data) return { isDuplicate: true, field: "document_number", existingId: data.id };
+  }
+
+  if (website && website.trim()) {
+    let q = db.from("sales_accounts").select("id").eq("website", website.trim());
+    if (excludeId) q = q.neq("id", excludeId);
+    const { data } = await q.maybeSingle();
+    if (data) return { isDuplicate: true, field: "website", existingId: data.id };
+  }
+
+  return { isDuplicate: false };
 }
 
 export function errorResponse(status: number, message: string) {

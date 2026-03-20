@@ -14,7 +14,7 @@ serve(async (req) => {
 
     if (req.method === "GET") {
       let query = db.from("sales_contacts").select("*, account:sales_accounts(id, name)");
-      query = applyOwnershipFilter(query, auth);
+      query = await applyOwnershipFilter(query, auth);
 
       const accountId = url.searchParams.get("account_id");
       if (accountId) query = query.eq("account_id", accountId);
