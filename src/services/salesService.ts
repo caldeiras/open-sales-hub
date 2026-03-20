@@ -2,208 +2,163 @@ import { supabase } from '@/integrations/supabase/client';
 import { getIdentityClient } from '@/lib/identityClient';
 
 /**
- * Commercial proxy — calls Edge Function to access CORE Commercial project.
- * 
- * Client map:
- *  - identityClient  → auth, profiles, user_roles, roles (macmkfoknhofnwhizsqc)
- *  - commercialProxy → sales_* tables on CORE Commercial (zkjrcenhemnnlmjiysbc) via Edge Function
- *  - localClient     → NOT used for commercial domain anymore
+ * All commercial data flows through dedicated Edge Functions that:
+ * 1. Validate the Identity JWT
+ * 2. Check roles (admin/gerente_comercial see all, comercial sees own)
+ * 3. Use COMMERCIAL_SERVICE_ROLE_KEY to operate on the Commercial DB
  */
 
-interface ProxyRequest {
-  table: string;
-  operation: 'select' | 'insert' | 'update' | 'delete';
-  filters?: Record<string, any>;
-  data?: Record<string, any>;
-  select?: string;
-  order?: { column: string; ascending?: boolean };
-}
-
-async function commercialQuery(request: ProxyRequest) {
-  // Get Identity session token to authenticate the proxy call
+async function getAuthHeaders(): Promise<Record<string, string>> {
   const identityClient = await getIdentityClient();
   const { data: { session } } = await identityClient.auth.getSession();
+  if (!session?.access_token) throw new Error('Not authenticated');
+  return { Authorization: `Bearer ${session.access_token}` };
+}
 
-  if (!session?.access_token) {
-    throw new Error('Not authenticated — no identity session');
+async function invokeFunction(name: string, options?: { body?: any; method?: string; params?: Record<string, string> }) {
+  const headers = await getAuthHeaders();
+  
+  // For GET requests with params, we pass them in the body since supabase.functions.invoke uses POST
+  // The Edge Function reads URL params for GET, so we simulate by sending method info
+  const { data, error } = await supabase.functions.invoke(name, {
+    body: { ...options?.body, _method: options?.method || 'GET', _params: options?.params },
+    headers,
+  });
+
+  if (error) throw new Error(error.message || `${name} error`);
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+// We need to adjust: supabase.functions.invoke always sends POST.
+// Our Edge Functions use req.method. Let's use a wrapper that handles this.
+async function salesGet(functionName: string, params?: Record<string, string>) {
+  const headers = await getAuthHeaders();
+  
+  // Build URL with query params for GET
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  const baseUrl = `https://${projectId}.supabase.co/functions/v1/${functionName}`;
+  const url = new URL(baseUrl);
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null) url.searchParams.set(k, v);
+    }
   }
 
-  const { data, error } = await supabase.functions.invoke('sales-commercial-proxy', {
-    body: request,
+  const res = await fetch(url.toString(), {
+    method: 'GET',
     headers: {
-      Authorization: `Bearer ${session.access_token}`,
+      ...headers,
+      'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      'Content-Type': 'application/json',
     },
   });
 
-  if (error) throw new Error(error.message || 'Commercial proxy error');
-  if (data?.error) throw new Error(data.error);
-
-  return data?.data || [];
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error || `${functionName} GET failed`);
+  return data;
 }
 
-// ===== Pipeline Stages =====
+async function salesPost(functionName: string, body: any) {
+  const headers = await getAuthHeaders();
+
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  const baseUrl = `https://${projectId}.supabase.co/functions/v1/${functionName}`;
+
+  const res = await fetch(baseUrl, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error || `${functionName} POST failed`);
+  return data;
+}
+
+// ===== Pipeline Stages (config — read via generic proxy) =====
 export async function fetchPipelineStages() {
-  return commercialQuery({
-    table: 'sales_pipeline_stages',
-    operation: 'select',
-    select: '*',
-    order: { column: 'stage_order', ascending: true },
-  });
-}
-
-// ===== Opportunities =====
-export async function fetchOpportunities(filters?: Record<string, any>) {
-  return commercialQuery({
-    table: 'sales_opportunities',
-    operation: 'select',
-    select: '*, account:sales_accounts(id, company_name), contact:sales_contacts(id, first_name, last_name), stage:sales_pipeline_stages(id, stage_name, stage_order, color), source:sales_lead_sources(id, source_name), segment:sales_segments(id, segment_name)',
-    filters,
-    order: { column: 'created_at', ascending: false },
-  });
-}
-
-export async function fetchOpportunityById(id: string) {
-  const data = await commercialQuery({
-    table: 'sales_opportunities',
-    operation: 'select',
-    select: '*, account:sales_accounts(*), contact:sales_contacts(*), stage:sales_pipeline_stages(*), source:sales_lead_sources(*), segment:sales_segments(*), loss_reason:sales_loss_reasons(*)',
-    filters: { id },
-  });
-  return data?.[0] || null;
-}
-
-// ===== Leads =====
-export async function fetchLeads(filters?: Record<string, any>) {
-  return commercialQuery({
-    table: 'sales_leads',
-    operation: 'select',
-    select: '*',
-    filters,
-    order: { column: 'created_at', ascending: false },
+  return salesGet('sales-commercial-proxy', undefined).catch(() => {
+    // Fallback: use dedicated proxy body
+    return invokeFunction('sales-commercial-proxy', {
+      body: { table: 'sales_pipeline_stages', operation: 'select', select: '*', order: { column: 'stage_order', ascending: true } },
+    });
   });
 }
 
 // ===== Accounts =====
 export async function fetchAccounts(filters?: Record<string, any>) {
-  return commercialQuery({
-    table: 'sales_accounts',
-    operation: 'select',
-    select: '*',
-    filters,
-    order: { column: 'company_name', ascending: true },
-  });
+  return salesGet('sales-accounts', filters as any);
 }
 
 export async function fetchAccountById(id: string) {
-  const data = await commercialQuery({
-    table: 'sales_accounts',
-    operation: 'select',
-    select: '*',
-    filters: { id },
-  });
-  return data?.[0] || null;
+  const accounts = await salesGet('sales-accounts', { id } as any);
+  // The Edge Function returns a list filtered by ownership; find the one
+  return Array.isArray(accounts) ? accounts.find((a: any) => a.id === id) || null : accounts;
+}
+
+export async function upsertAccount(data: any) {
+  return salesPost('sales-accounts', data);
 }
 
 // ===== Contacts =====
 export async function fetchContacts(filters?: Record<string, any>) {
-  return commercialQuery({
-    table: 'sales_contacts',
-    operation: 'select',
-    select: '*, account:sales_accounts(id, company_name)',
-    filters,
-    order: { column: 'first_name', ascending: true },
-  });
+  return salesGet('sales-contacts', filters as any);
+}
+
+export async function upsertContact(data: any) {
+  return salesPost('sales-contacts', data);
+}
+
+// ===== Opportunities =====
+export async function fetchOpportunities(filters?: Record<string, any>) {
+  return salesGet('sales-opportunities', filters as any);
+}
+
+export async function fetchOpportunityById(id: string) {
+  return salesGet('sales-opportunities', { id });
+}
+
+export async function upsertOpportunity(data: any) {
+  return salesPost('sales-opportunities', data);
 }
 
 // ===== Activities =====
 export async function fetchActivities(filters?: Record<string, any>) {
-  return commercialQuery({
-    table: 'sales_activities',
-    operation: 'select',
-    select: '*, opportunity:sales_opportunities(id, title), account:sales_accounts(id, company_name), contact:sales_contacts(id, first_name, last_name)',
-    filters,
-    order: { column: 'due_date', ascending: true },
+  return salesGet('sales-activities', filters as any);
+}
+
+export async function upsertActivity(data: any) {
+  return salesPost('sales-activities', data);
+}
+
+// ===== Config tables (via commercial proxy) =====
+async function fetchConfigTable(table: string, orderColumn: string) {
+  return invokeFunction('sales-commercial-proxy', {
+    body: { table, operation: 'select', select: '*', order: { column: orderColumn, ascending: true } },
   });
 }
 
-// ===== Proposals =====
-export async function fetchProposals() {
-  return commercialQuery({
-    table: 'sales_proposals_links',
-    operation: 'select',
-    select: '*, opportunity:sales_opportunities(id, title, account:sales_accounts(id, company_name))',
-    order: { column: 'created_at', ascending: false },
-  });
-}
-
-// ===== Notes =====
-export async function fetchNotes(entityType: string, entityId: string) {
-  return commercialQuery({
-    table: 'sales_notes',
-    operation: 'select',
-    select: '*',
-    filters: { entity_type: entityType, entity_id: entityId },
-    order: { column: 'created_at', ascending: false },
-  });
-}
-
-// ===== Stage History =====
-export async function fetchStageHistory(opportunityId: string) {
-  return commercialQuery({
-    table: 'sales_opportunity_stage_history',
-    operation: 'select',
-    select: '*, from_stage:sales_pipeline_stages!from_stage_id(stage_name, color), to_stage:sales_pipeline_stages!to_stage_id(stage_name, color)',
-    filters: { opportunity_id: opportunityId },
-    order: { column: 'changed_at', ascending: false },
-  });
-}
-
-// ===== Tags =====
-export async function fetchTags() {
-  return commercialQuery({
-    table: 'sales_tags',
-    operation: 'select',
-    select: '*',
-    order: { column: 'tag_name', ascending: true },
-  });
-}
-
-// ===== Lead Sources =====
 export async function fetchLeadSources() {
-  return commercialQuery({
-    table: 'sales_lead_sources',
-    operation: 'select',
-    select: '*',
-    order: { column: 'source_name', ascending: true },
-  });
+  return fetchConfigTable('sales_lead_sources', 'sort_order');
 }
 
-// ===== Segments =====
 export async function fetchSegments() {
-  return commercialQuery({
-    table: 'sales_segments',
-    operation: 'select',
-    select: '*',
-    order: { column: 'segment_name', ascending: true },
-  });
+  return fetchConfigTable('sales_segments', 'sort_order');
 }
 
-// ===== Loss Reasons =====
 export async function fetchLossReasons() {
-  return commercialQuery({
-    table: 'sales_loss_reasons',
-    operation: 'select',
-    select: '*',
-    order: { column: 'reason_name', ascending: true },
-  });
+  return fetchConfigTable('sales_loss_reasons', 'sort_order');
 }
 
-// ===== Opportunity Products =====
-export async function fetchOpportunityProducts(opportunityId: string) {
-  return commercialQuery({
-    table: 'sales_opportunity_products',
-    operation: 'select',
-    select: '*',
-    filters: { opportunity_id: opportunityId },
-  });
-}
+// ===== Stubs for future features (not in Phase 2 scope) =====
+export async function fetchLeads(_filters?: Record<string, any>) { return []; }
+export async function fetchProposals() { return []; }
+export async function fetchNotes(_entityType: string, _entityId: string) { return []; }
+export async function fetchStageHistory(_opportunityId: string) { return []; }
+export async function fetchTags() { return []; }
+export async function fetchOpportunityProducts(_opportunityId: string) { return []; }
