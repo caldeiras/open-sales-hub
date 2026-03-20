@@ -39,7 +39,9 @@ export function useUpsertAccount() {
 
 // ===== Contacts =====
 export function useContacts(filters?: Record<string, any>) {
-  return useQuery({ queryKey: ['contacts', filters], queryFn: () => salesService.fetchContacts(filters) });
+  const enabled = filters?._enabled !== false;
+  const cleanFilters = filters ? Object.fromEntries(Object.entries(filters).filter(([k]) => !k.startsWith('_'))) : undefined;
+  return useQuery({ queryKey: ['contacts', cleanFilters], queryFn: () => salesService.fetchContacts(cleanFilters), enabled });
 }
 
 export function useUpsertContact() {
