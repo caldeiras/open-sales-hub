@@ -26,7 +26,7 @@ serve(async (req) => {
 
     // Fetch goals
     let goalsQuery = db.from("sales_goals").select("*").eq("period_month", currentMonth);
-    goalsQuery = applyOwnershipFilter(goalsQuery, auth);
+    goalsQuery = await applyOwnershipFilter(goalsQuery, auth);
     const { data: goals = [] } = await goalsQuery;
 
     // Fetch revenue events for the month to calculate actuals
