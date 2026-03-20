@@ -29,6 +29,7 @@ import PlaybooksPage from "./pages/sales/PlaybooksPage";
 import TemplatesPage from "./pages/sales/TemplatesPage";
 import AlertsPage from "./pages/sales/AlertsPage";
 import PriorityPage from "./pages/sales/PriorityPage";
+import DocsPage from "./pages/sales/DocsPage";
 
 const queryClient = new QueryClient();
 
