@@ -49,10 +49,10 @@ export async function fetchRolePermissions(roleId: string) {
   return rbacPost({ action: 'role-permissions', role_id: roleId });
 }
 
-export async function assignRole(targetUserId: string, roleName: string) {
-  return rbacPost({ action: 'assign-role', target_user_id: targetUserId, role_name: roleName });
+export async function assignRole(targetUserId: string, roleId: string) {
+  return rbacPost({ action: 'assign-role', target_user_id: targetUserId, role_id: roleId });
 }
 
-export async function removeRole(targetUserId: string, roleName: string) {
-  return rbacPost({ action: 'remove-role', target_user_id: targetUserId, role_name: roleName });
+export async function removeRole(targetUserId: string, roleId: string) {
+  return rbacPost({ action: 'remove-role', target_user_id: targetUserId, role_id: roleId });
 }

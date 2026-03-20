@@ -1,102 +1,94 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  corsHeaders, validateIdentityJwt, errorResponse, jsonResponse,
+  corsHeaders, validateIdentityJwt, getCommercialClient,
+  errorResponse, jsonResponse,
 } from "../_shared/sales-auth.ts";
 
 /**
- * RBAC Management Edge Function
- * 
+ * RBAC Management Edge Function — calls RPCs on commercial/core-open project.
+ *
  * Actions (POST body.action):
- *   my-context       — returns current user's roles + permissions
- *   list-roles       — list all roles (admin/rbac.view)
- *   list-permissions  — list all permissions (admin/rbac.view)
- *   list-users-roles  — list users with their roles (admin/rbac.view)
- *   role-permissions  — list permissions for a role (admin/rbac.view)
- *   assign-role       — assign role to user (admin only)
- *   remove-role       — remove role from user (admin only)
- * 
- * All operations validate Identity JWT first.
- * Admin check uses local RBAC RPCs (SECURITY DEFINER).
+ *   my-context        — returns current user's roles + permissions (local RBAC)
+ *   list-roles        — get_roles() on commercial DB
+ *   list-permissions   — get_permissions() on commercial DB
+ *   list-users-roles   — get_user_roles_raw() on commercial DB
+ *   role-permissions   — permissions for a specific role (commercial DB)
+ *   assign-role        — assign_role(user_id, role_id) on commercial DB
+ *   remove-role        — remove_role(user_id, role_id) on commercial DB
  */
-
-function getLocalClient() {
-  return createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  );
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const auth = await validateIdentityJwt(req);
-    const db = getLocalClient();
+    const db = getCommercialClient();
     const body = req.method === "POST" ? await req.json() : {};
     const action = body.action || "my-context";
 
     // ===== MY CONTEXT (any authenticated user) =====
     if (action === "my-context") {
-      const { data: roles } = await db.rpc("rbac_get_user_roles", { p_user_id: auth.userId });
-      const { data: permissions } = await db.rpc("rbac_get_user_permissions", { p_user_id: auth.userId });
       return jsonResponse({
         user_id: auth.userId,
         email: auth.email,
-        roles: roles || [],
-        permissions: permissions || [],
+        roles: auth.roles,
+        permissions: auth.permissions,
       });
     }
 
-    // ===== ADMIN-ONLY ACTIONS =====
-    const hasRbacView = await db.rpc("rbac_user_has_permission", { p_user_id: auth.userId, p_permission: "rbac.view" });
-    const hasRbacManage = await db.rpc("rbac_user_has_permission", { p_user_id: auth.userId, p_permission: "rbac.manage" });
+    // ===== Permission checks =====
+    const isAdmin = auth.roles.includes("admin");
+    const hasRbacView = isAdmin || auth.permissions.includes("rbac.view");
+    const hasRbacManage = isAdmin || auth.permissions.includes("rbac.manage");
 
-    // Read operations require rbac.view
     if (["list-roles", "list-permissions", "list-users-roles", "role-permissions"].includes(action)) {
-      if (!hasRbacView.data) {
-        return errorResponse(403, "User lacks permission: rbac.view");
-      }
+      if (!hasRbacView) return errorResponse(403, "User lacks permission: rbac.view");
     }
 
-    // Write operations require rbac.manage
     if (["assign-role", "remove-role"].includes(action)) {
-      if (!hasRbacManage.data) {
-        return errorResponse(403, "User lacks permission: rbac.manage");
-      }
+      if (!hasRbacManage) return errorResponse(403, "User lacks permission: rbac.manage");
     }
 
-    // ===== LIST ROLES =====
+    // ===== LIST ROLES (RPC on commercial) =====
     if (action === "list-roles") {
-      const { data, error } = await db.from("roles").select("*").order("name");
-      if (error) return errorResponse(400, error.message);
-      return jsonResponse(data);
+      const { data, error } = await db.rpc("get_roles");
+      if (error) {
+        console.error("[sales-rbac] get_roles error:", error.message);
+        return errorResponse(400, error.message);
+      }
+      return jsonResponse(data || []);
     }
 
-    // ===== LIST PERMISSIONS =====
+    // ===== LIST PERMISSIONS (RPC on commercial) =====
     if (action === "list-permissions") {
-      const { data, error } = await db.from("permissions").select("*").order("module, key");
-      if (error) return errorResponse(400, error.message);
-      return jsonResponse(data);
+      const { data, error } = await db.rpc("get_permissions");
+      if (error) {
+        console.error("[sales-rbac] get_permissions error:", error.message);
+        return errorResponse(400, error.message);
+      }
+      return jsonResponse(data || []);
     }
 
-    // ===== LIST USERS WITH ROLES =====
+    // ===== LIST USERS WITH ROLES (RPC on commercial) =====
     if (action === "list-users-roles") {
-      const { data, error } = await db
-        .from("user_roles")
-        .select("id, user_id, is_active, assigned_at, assigned_by, role:roles(id, name, label)")
-        .eq("is_active", true)
-        .order("assigned_at", { ascending: false });
-      if (error) return errorResponse(400, error.message);
-
-      // Group by user_id
+      const { data, error } = await db.rpc("get_user_roles_raw");
+      if (error) {
+        console.error("[sales-rbac] get_user_roles_raw error:", error.message);
+        return errorResponse(400, error.message);
+      }
+      // Group by user_id for the frontend
+      const raw = data || [];
       const userMap: Record<string, any> = {};
-      for (const ur of data || []) {
-        if (!userMap[ur.user_id]) {
-          userMap[ur.user_id] = { user_id: ur.user_id, roles: [] };
+      for (const row of raw) {
+        const uid = row.user_id;
+        if (!userMap[uid]) {
+          userMap[uid] = { user_id: uid, roles: [] };
         }
-        userMap[ur.user_id].roles.push(ur.role);
+        userMap[uid].roles.push({
+          id: row.role_id,
+          name: row.role_name,
+          label: row.role_label || row.role_name,
+        });
       }
       return jsonResponse(Object.values(userMap));
     }
@@ -105,40 +97,47 @@ serve(async (req) => {
     if (action === "role-permissions") {
       const roleId = body.role_id;
       if (!roleId) return errorResponse(400, "role_id required");
-      const { data, error } = await db
-        .from("role_permissions")
-        .select("permission:permissions(id, key, label, module)")
-        .eq("role_id", roleId);
-      if (error) return errorResponse(400, error.message);
-      return jsonResponse((data || []).map((rp: any) => rp.permission));
+      // Try RPC first, fallback to table query
+      const { data, error } = await db.rpc("get_role_permissions", { p_role_id: roleId });
+      if (error) {
+        console.error("[sales-rbac] get_role_permissions error:", error.message);
+        return errorResponse(400, error.message);
+      }
+      return jsonResponse(data || []);
     }
 
-    // ===== ASSIGN ROLE =====
+    // ===== ASSIGN ROLE (RPC on commercial) =====
     if (action === "assign-role") {
-      const { target_user_id, role_name } = body;
-      if (!target_user_id || !role_name) return errorResponse(400, "target_user_id and role_name required");
+      const { target_user_id, role_id, role_name } = body;
+      if (!target_user_id) return errorResponse(400, "target_user_id required");
+      if (!role_id && !role_name) return errorResponse(400, "role_id or role_name required");
 
-      const { error } = await db.rpc("rbac_assign_role", {
-        p_actor_user_id: auth.userId,
-        p_target_user_id: target_user_id,
-        p_role: role_name,
+      const { error } = await db.rpc("assign_role", {
+        p_user_id: target_user_id,
+        p_role_id: role_id || null,
       });
-      if (error) return errorResponse(400, error.message);
-      return jsonResponse({ success: true, message: `Role ${role_name} assigned` });
+      if (error) {
+        console.error("[sales-rbac] assign_role error:", error.message);
+        return errorResponse(400, error.message);
+      }
+      return jsonResponse({ success: true, message: "Role assigned" });
     }
 
-    // ===== REMOVE ROLE =====
+    // ===== REMOVE ROLE (RPC on commercial) =====
     if (action === "remove-role") {
-      const { target_user_id, role_name } = body;
-      if (!target_user_id || !role_name) return errorResponse(400, "target_user_id and role_name required");
+      const { target_user_id, role_id, role_name } = body;
+      if (!target_user_id) return errorResponse(400, "target_user_id required");
+      if (!role_id && !role_name) return errorResponse(400, "role_id or role_name required");
 
-      const { error } = await db.rpc("rbac_remove_role", {
-        p_actor_user_id: auth.userId,
-        p_target_user_id: target_user_id,
-        p_role: role_name,
+      const { error } = await db.rpc("remove_role", {
+        p_user_id: target_user_id,
+        p_role_id: role_id || null,
       });
-      if (error) return errorResponse(400, error.message);
-      return jsonResponse({ success: true, message: `Role ${role_name} removed` });
+      if (error) {
+        console.error("[sales-rbac] remove_role error:", error.message);
+        return errorResponse(400, error.message);
+      }
+      return jsonResponse({ success: true, message: "Role removed" });
     }
 
     return errorResponse(400, `Unknown action: ${action}`);
