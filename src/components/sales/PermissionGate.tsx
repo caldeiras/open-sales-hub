@@ -3,25 +3,23 @@ import { useSalesAuth } from '@/contexts/SalesAuthContext';
 interface PermissionGateProps {
   /** One or more role slugs; user must have at least one */
   allowedRoles?: string[];
-  /** Legacy prop: treated as a role check (admin always passes) */
+  /** Permission key to check (e.g. 'lead.create') */
   permissionKey?: string;
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }
 
 export function PermissionGate({ allowedRoles, permissionKey, children, fallback = null }: PermissionGateProps) {
-  const { roles } = useSalesAuth();
+  const { roles, hasPermission } = useSalesAuth();
 
   // Admin always passes
   if (roles.includes('admin')) {
     return <>{children}</>;
   }
 
-  // If permissionKey is set, check if user has admin role (only admins for now)
+  // Permission-based check
   if (permissionKey) {
-    // For now, permission-based actions require admin role
-    // This will evolve to a proper permission system later
-    return <>{fallback}</>;
+    if (!hasPermission(permissionKey)) return <>{fallback}</>;
   }
 
   // Role-based check
