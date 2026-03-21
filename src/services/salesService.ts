@@ -25,10 +25,9 @@ const MIGRATED_TO_CORE_OPEN = new Set([
   "sales-contacts",
   "sales-accounts",
   // adicione aqui as próximas à medida que forem migradas:
-  // 'sales-accounts',
   "sales-opportunities",
   "sales-commercial-proxy",
-  // 'sales-activities',
+  "sales-activities",
 ]);
 
 // ─── Auth headers ─────────────────────────────────────────────────────────────
