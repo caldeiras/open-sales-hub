@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { getIdentityClient } from '@/lib/identityClient';
-import type { Session, User } from '@supabase/supabase-js';
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { getIdentityClient } from "@/lib/identityClient";
+import type { Session, User } from "@supabase/supabase-js";
 
 interface CoreProfile {
   id: string;
@@ -50,19 +50,19 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadRbacContext = useCallback(async (accessToken: string) => {
     try {
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/sales-rbac`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ action: 'my-context' }),
-        }
-      );
+      // Aponta para core-open (zkjrcenhemnnlmjiysbc) — não mais para o Lovable Cloud
+      const coreOpenUrl = import.meta.env.VITE_CORE_OPEN_URL;
+      const coreOpenAnonKey = import.meta.env.VITE_CORE_OPEN_ANON_KEY;
+
+      const res = await fetch(`${coreOpenUrl}/functions/v1/sales-rbac`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: coreOpenAnonKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "my-context" }),
+      });
       if (res.ok) {
         const ctx = await res.json();
         setRoles(ctx.roles || []);
@@ -70,7 +70,7 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
     } catch (err) {
-      console.warn('Failed to load RBAC context from Edge Function:', err);
+      console.warn("Failed to load RBAC context from Edge Function:", err);
     }
     // Fallback: clear
     setRoles([]);
@@ -81,13 +81,13 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const identityClient = await getIdentityClient();
       const { data: profileData } = await identityClient
-        .from('profiles')
-        .select('*')
-        .eq('email', currentUser.email)
+        .from("profiles")
+        .select("*")
+        .eq("email", currentUser.email)
         .maybeSingle();
       setProfile(profileData || null);
     } catch (err) {
-      console.warn('Failed to load IDENTITY profile:', err);
+      console.warn("Failed to load IDENTITY profile:", err);
     }
   }, []);
 
@@ -98,30 +98,32 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const identityClient = await getIdentityClient();
 
-        const { data: { subscription } } = identityClient.auth.onAuthStateChange(
-          async (_event, currentSession) => {
-            if (!mounted) return;
+        const {
+          data: { subscription },
+        } = identityClient.auth.onAuthStateChange(async (_event, currentSession) => {
+          if (!mounted) return;
 
-            setSession(currentSession);
-            setUser(currentSession?.user ?? null);
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
 
-            if (currentSession?.user) {
-              setTimeout(() => {
-                if (mounted) {
-                  loadProfileFromIdentity(currentSession.user);
-                  loadRbacContext(currentSession.access_token);
-                }
-              }, 0);
-            } else {
-              setProfile(null);
-              setRoles([]);
-              setPermissions([]);
-            }
-            setLoading(false);
+          if (currentSession?.user) {
+            setTimeout(() => {
+              if (mounted) {
+                loadProfileFromIdentity(currentSession.user);
+                loadRbacContext(currentSession.access_token);
+              }
+            }, 0);
+          } else {
+            setProfile(null);
+            setRoles([]);
+            setPermissions([]);
           }
-        );
+          setLoading(false);
+        });
 
-        const { data: { session: initialSession } } = await identityClient.auth.getSession();
+        const {
+          data: { session: initialSession },
+        } = await identityClient.auth.getSession();
         if (!mounted) return;
 
         setSession(initialSession);
@@ -140,7 +142,7 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
           subscription.unsubscribe();
         };
       } catch (err) {
-        console.error('Failed to initialize IDENTITY auth:', err);
+        console.error("Failed to initialize IDENTITY auth:", err);
         if (mounted) setLoading(false);
       }
     };
@@ -155,8 +157,8 @@ export function SalesAuthProvider({ children }: { children: React.ReactNode }) {
   const hasRole = useCallback((roleSlug: string) => roles.includes(roleSlug), [roles]);
   const hasAnyRole = useCallback((roleSlugs: string[]) => roleSlugs.some((s) => roles.includes(s)), [roles]);
   const hasPermission = useCallback(
-    (key: string) => roles.includes('admin') || permissions.includes(key),
-    [roles, permissions]
+    (key: string) => roles.includes("admin") || permissions.includes(key),
+    [roles, permissions],
   );
 
   const signOut = useCallback(async () => {
