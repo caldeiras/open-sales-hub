@@ -28,6 +28,10 @@ const MIGRATED_TO_CORE_OPEN = new Set([
   "sales-opportunities",
   "sales-commercial-proxy",
   "sales-activities",
+  "sales-forecast-summary",
+  "sales-ranking-summary",
+  "sales-revenue-summary",
+  "sales-goal-performance",
 ]);
 
 // ─── Auth headers ─────────────────────────────────────────────────────────────
