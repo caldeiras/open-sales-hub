@@ -36,6 +36,17 @@ const MIGRATED_TO_CORE_OPEN = new Set([
   "sales-alerts",
   "sales-goals",
   "sales-commissions",
+  "sales-leads", // ← adicionar
+  "sales-playbooks", // ← adicionar
+  "sales-templates", // ← adicionar
+  "sales-risk-flags", // ← adicionar
+  "sales-opportunity-scores", // ← adicionar
+  "sales-recommendations", // ← adicionar
+  "sales-territories", // ← adicionar
+  "sales-territory-assignments", // ← adicionar
+  "sales-teams", // ← adicionar
+  "sales-team-summary", // ← adicionar
+  "sales-account-ownership", // ← adicionar
 ]);
 
 // ─── Auth headers ─────────────────────────────────────────────────────────────
