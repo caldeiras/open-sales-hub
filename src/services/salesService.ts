@@ -32,6 +32,10 @@ const MIGRATED_TO_CORE_OPEN = new Set([
   "sales-ranking-summary",
   "sales-revenue-summary",
   "sales-goal-performance",
+  "sales-pipeline-board",
+  "sales-alerts",
+  "sales-goals",
+  "sales-commissions",
 ]);
 
 // ─── Auth headers ─────────────────────────────────────────────────────────────
