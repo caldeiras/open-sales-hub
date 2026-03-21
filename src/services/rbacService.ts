@@ -1,35 +1,36 @@
-import { getCommercialClient } from '@/lib/commercialClient';
+import { getCommercialClient } from "@/lib/commercialClient";
 
 // ===== User Context =====
 export async function fetchMyRbacContext() {
-  // Still use Edge Function for auth-context (needs JWT validation)
-  const { getIdentityClient } = await import('@/lib/identityClient');
+  const { getIdentityClient } = await import("@/lib/identityClient");
   const identityClient = await getIdentityClient();
-  const { data: { session } } = await identityClient.auth.getSession();
-  if (!session?.access_token) throw new Error('Not authenticated');
+  const {
+    data: { session },
+  } = await identityClient.auth.getSession();
+  if (!session?.access_token) throw new Error("Not authenticated");
 
-  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-  const res = await fetch(
-    `https://${projectId}.supabase.co/functions/v1/sales-rbac`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ action: 'my-context' }),
-    }
-  );
+  // Aponta para core-open (zkjrcenhemnnlmjiysbc) — não mais para o Lovable Cloud
+  const coreOpenUrl = import.meta.env.VITE_CORE_OPEN_URL;
+  const coreOpenAnonKey = import.meta.env.VITE_CORE_OPEN_ANON_KEY;
+
+  const res = await fetch(`${coreOpenUrl}/functions/v1/sales-rbac`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: coreOpenAnonKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action: "my-context" }),
+  });
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error || 'Failed to load RBAC context');
+  if (!res.ok) throw new Error(data?.error || "Failed to load RBAC context");
   return data;
 }
 
 // ===== Roles =====
 export async function fetchRoles() {
   const db = await getCommercialClient();
-  const { data, error } = await db.rpc('get_roles');
+  const { data, error } = await db.rpc("get_roles");
   if (error) throw new Error(error.message);
   return (data || []).map((r: any) => ({
     id: r.id,
@@ -46,7 +47,7 @@ export async function fetchRoles() {
 // ===== Permissions =====
 export async function fetchPermissions() {
   const db = await getCommercialClient();
-  const { data, error } = await db.rpc('get_permissions');
+  const { data, error } = await db.rpc("get_permissions");
   if (error) throw new Error(error.message);
   return (data || []).map((p: any) => ({
     id: p.id,
@@ -62,9 +63,8 @@ export async function fetchPermissions() {
 // ===== Users with Roles (grouped) =====
 export async function fetchUsersWithRoles() {
   const db = await getCommercialClient();
-  const { data, error } = await db.rpc('get_user_roles_raw');
+  const { data, error } = await db.rpc("get_user_roles_raw");
   if (error) throw new Error(error.message);
-
   const raw = data || [];
   const userMap: Record<string, any> = {};
   for (const row of raw) {
@@ -87,10 +87,9 @@ export async function fetchUsersWithRoles() {
 export async function fetchRolePermissions(roleId: string) {
   const db = await getCommercialClient();
   const { data, error } = await db
-    .from('role_permissions')
-    .select('permission_id, permissions(name, module)')
-    .eq('role_id', roleId);
-
+    .from("role_permissions")
+    .select("permission_id, permissions(name, module)")
+    .eq("role_id", roleId);
   if (error) throw new Error(error.message);
   return (data || []).map((rp: any) => ({
     permission_name: rp.permissions?.name,
@@ -102,23 +101,23 @@ export async function fetchRolePermissions(roleId: string) {
 // ===== Assign Role =====
 export async function assignRole(targetUserId: string, roleId: string) {
   const db = await getCommercialClient();
-  const { data, error } = await db.rpc('assign_role', {
+  const { data, error } = await db.rpc("assign_role", {
     p_user_id: targetUserId,
     p_role_id: roleId,
   });
   if (error) throw new Error(error.message);
-  if (data && data.success === false) throw new Error('Failed to assign role');
+  if (data && data.success === false) throw new Error("Failed to assign role");
   return data;
 }
 
 // ===== Remove Role =====
 export async function removeRole(targetUserId: string, roleId: string) {
   const db = await getCommercialClient();
-  const { data, error } = await db.rpc('remove_role', {
+  const { data, error } = await db.rpc("remove_role", {
     p_user_id: targetUserId,
     p_role_id: roleId,
   });
   if (error) throw new Error(error.message);
-  if (data && data.success === false) throw new Error('Failed to remove role');
+  if (data && data.success === false) throw new Error("Failed to remove role");
   return data;
 }
