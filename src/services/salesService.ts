@@ -23,6 +23,7 @@ const CORE_OPEN_ANON_KEY = import.meta.env.VITE_CORE_OPEN_ANON_KEY;
 // Funções já migradas para o core-open
 const MIGRATED_TO_CORE_OPEN = new Set([
   "sales-contacts",
+  "sales-accounts",
   // adicione aqui as próximas à medida que forem migradas:
   // 'sales-accounts',
   // 'sales-opportunities',
